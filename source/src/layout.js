@@ -40,6 +40,25 @@ const edgeDist = (x, z) => {
       : min(RB.gar(t) - r, r - RB.cho(t)) > 0 ? min(RB.gar(t) - r, r - RB.cho(t)) : r > RB.out(t) ? r - RB.out(t) : -1;
 };
 
+// sand dunes: transverse ridges across the north-north-west wind with steep slip faces downwind (south-south-east),
+// wandering and breaking into crescents, with smaller dunes riding on them. Metres above the plain.
+const dunes = (x, z) => {
+  const u = x * 0.36 + z * 0.93, v = -x * 0.93 + z * 0.36;
+  const w = (fbm(x / 420 + 11, z / 420 + 4, 3) - 0.5) * 300 + (fbm(x / 140 + 2, z / 140 + 9, 2) - 0.5) * 50;
+  const s = (u + w) / 190, f = s - floor(s), k = floor(s);
+  const ridge = f < 0.8 ? sstep(0, 0.8, f) : 1 - sstep(0.8, 1, f);
+  const seg = sstep(0.3, 0.62, fbm(v / 260 + k * 3.1, k * 1.7 + 0.5, 2)), amp = 7 + 24 * fbm(x / 900 + 1, z / 900 + 7, 2);
+  const s2 = (u * 1.1 + v * 0.25 + w * 0.4) / 47, f2 = s2 - floor(s2), small = f2 < 0.75 ? sstep(0, 0.75, f2) : 1 - sstep(0.75, 1, f2);
+  return ridge * amp * (0.35 + 0.65 * seg) + small * 2.2 * fbm(x / 120 + 4, z / 120 + 2, 2);
+};
+// pyramids on the desert plateau north-west of the city, below the cliffs: x, z, half base, height
+const PYRAMIDS = [[-430, -1520, 115, 146], [-780, -1420, 103, 136], [-1010, -1250, 54, 66]];
+const SPHINX = [-250, -1320, 52]; // the great sphinx: x, z, radius of its hollow
+const pyrBase = (P) => P[4] ?? (P[4] = landRaw(P[0], P[1]) + 1);
+// the Nile's far (southern) bank: z of its waterline at x
+const FAR_BANK = (x) => 1850 + 220 * sin(x / 950 + 1) + 100 * sin(x / 380 + 2.2);
+// and its near (northern) bank beyond the city's shore, east and west: z of the waterline at x
+const NEAR_BANK = (x) => 380 + 160 * sin(x / 820 + 2) + 70 * sin(x / 310 + 0.6);
 // terrain beyond the outer canal
 // coast about 900 m out, with capes and coves; the harbour is a bay cut into the south side
 const HARB_R = 452, WQ = [-852, 146]; // land's end at the harbour; centre of the west quay's bastion
@@ -68,7 +87,8 @@ const landH = (x, z, r, ro, rc, north, dC) => {
   const k = sstep(0, 1, (r - ro) / 240);
   let h = LAND + k * (und * 7 + 3.5 - 5.5 * sstep(0, 1, (r - ro) / (rc - ro)) * (1 - north)) + north * sstep(520, 1000, r) * 34 * sstep(20, 420, dC);
   // terraced fields along the contours of gentle slopes
-  const terr = sstep(40, 120, r - ro) * (1 - sstep(700, 1000, r) * north);
+  // (only on the Nile's flood plain: under the desert's sand they showed as a grid of hollows)
+  const terr = sstep(40, 120, r - ro) * (1 - sstep(700, 1000, r) * north) * sstep(400, 250, dC);
   const st = h / 1.5, sf = st - floor(st); h = mix(h, (floor(st) + sstep(0.72, 0.96, sf)) * 1.5, terr * 0.85);
   // mountains: ridged limestone falling to the sea over a kilometre or more; crags only where a patchy noise allows
   const ms = sstep(40, 1300, dC), mk = north * sstep(1250, 2700, r) * (0.75 + 0.5 * fbm(x / 900 + 9, z / 900 + 2, 2)) * ms * (0.3 + 0.7 * ms);
@@ -77,7 +97,7 @@ const landH = (x, z, r, ro, rc, north, dC) => {
     // limestone beds ~90 m apart weathered into face-bench-face steps; they dip across the range and show only in parts
     const cb = fbm(x / 340 + 3.3, z / 340 + 8.1, 2), dip = 150 * (fbm(x / 520 + 1.9, z / 520 + 6.4, 2) - 0.5) + 30 * (fbm(x / 95 + 4.4, z / 95 + 0.7, 2) - 0.5);
     const k = (m + dip) / 92, bench = (floor(k) + sstep(0.22, 0.6, k - floor(k))) * 92 - dip;
-    m = mix(m, bench, 0.85 * sstep(0.4, 0.62, cb) * sstep(70, 170, m)) * 0.86;
+    m = mix(m, bench, 0.88 * sstep(0.26, 0.48, cb) * sstep(50, 150, m)) * 0.86;
     h += mk * m;
   }
   return h;
@@ -134,8 +154,23 @@ const terrainH = (x, z) => {
   if (r > 440 && r < 487) { const a = abs(angd(t, PI / 2)), w = sstep(52 * DEG, 45 * DEG, a) * sstep(43.03 * DEG, 43.35 * DEG, a) * (1 - sstep(480, 487, r)); if (w > 0) h = mix(h, max(h, quayY(r) - 0.45), w); }
   // rocky headland under the west quay
   { const q = hypot(x - WQ[0] - 14, z - WQ[1] - 14); if (q < 95) h = max(h, mix(14, -8, sstep(30, 66, q)) + (fbm(x / 9, z / 9, 3) - 0.5) * 3 * sstep(24, 44, q)); }
-  // low hazy islands far out
+  // low sandy islands in the Nile
   for (const [ix, iz, ir, ih] of ISLES) { const q = hypot(x - ix, z - iz) / ir; if (q < 1) h = max(h, -6 + (ih + 6) * (1 - q * q) ** 2 * (0.6 + 0.8 * fbm(x / 300, z / 300, 3))); }
+  // the desert: dunes wherever the land is out of reach of the Nile, the river and the fields along them
+  if (d > 0) h += dunes(x, z) * sstep(150, 480, d) * sstep(90, 260, rd) * sstep(40, 200, r - ro) * (1 - north * sstep(1300, 1900, r));
+  // the far bank, across the Nile to the south: a low sandy shore rising into dunes
+  const fb = z - FAR_BANK(x);
+  if (fb > -120) h = max(h, mix(-9, 3 + 0.004 * max(fb, 0), sstep(-120, 140, fb)) + dunes(x + 517, z - 233) * sstep(160, 700, fb));
+  // the near (northern) bank, running on east and west of the city's shore, so the water reads as a river
+  const nb = NEAR_BANK(x) - z, nw = sstep(700, 1250, abs(x)) * sstep(70, 0, d);
+  if (nw > 0 && nb > -120) h = max(h, mix(-60, mix(-9, 3 + 0.004 * max(nb, 0), sstep(-120, 140, nb)) + dunes(x - 311, z + 97) * sstep(180, 700, nb), nw));
+  // a ring of high dunes and desert hills on the horizon, so the land never simply ends
+  // the pyramids' plateau, levelled and swept clear of dunes
+  for (const P of PYRAMIDS) { const q = max(abs(x - P[0]), abs(z - P[1])); if (q < P[2] * 1.9) { h = mix(h, pyrBase(P), sstep(P[2] * 1.9, P[2] * 1.15, q)); if (q > P[2] * 0.85) h = max(h, pyrBase(P) + max(0, P[2] * 1.16 - q) * (0.28 + 0.25 * fbm(x / 40 + 3, z / 40 + 1, 2))); } } // and sand drifted against its foot
+  // (falling away again before the land's edge at ~7 km, so no hard rim shows against the sky)
+  // the great sphinx's hollow, cut down into the bedrock, its walls eroded
+  { const e = hypot(x - SPHINX[0], z - SPHINX[1]) / (SPHINX[2] * (0.9 + 0.2 * fbm(x / 12 + 5, z / 12 + 3, 2))); if (e < 1.3) h = mix(h, min(h, pyrBase(PYRAMIDS[0]) - 9), sstep(1.05, 0.85, e)); }
+  if (r > 4800) h = max(h, sstep(4800, 6000, r) * (1 - sstep(6300, 7100, r)) * (82 + 90 * fbm(x / 1400 + 3, z / 1400 + 6, 3) + dunes(x, z) * 0.6) - 12);
   return h;
 };
 // farmland on the shelf
@@ -161,14 +196,15 @@ const parcelUse = (b, s) => {
   const key = b * 4096 + s; let p = parcels.get(key);
   if (!p) {
     const [x, z] = parcelPt(b + 0.5, s + 0.5, b), r = hypot(x, z), t = atan2(z, x), id = h2(b * 31 + 5, s), d = coastT(t) - r;
-    const farm = b >= 0 && d > 60 && abs(angd(t, PI / 2)) > 50 * DEG && riverDist(x, z) > 45 && woodAt(x, z) < 0.6 && fbm(x / 170 + 4, z / 170 + 8, 3) + 0.25 * (1 - sstep(500, 900, r)) > 0.4;
+    // fields only on the Nile's flood plain and along the river; the rest is desert
+    const farm = b >= 0 && d > 60 && (d < 330 || riverDist(x, z) < 230) &&abs(angd(t, PI / 2)) > 50 * DEG && riverDist(x, z) > 45 && woodAt(x, z) < 0.6 && fbm(x / 170 + 4, z / 170 + 8, 3) + 0.25 * (1 - sstep(500, 900, r)) > 0.4;
     parcels.set(key, p = { kind: farm ? PKIND[floor(h2(s * 17 + 3, b * 7 + 1) * 10)] : 0, id, x, z, farm });
   }
   return p;
 };
 const ISLES = [[-3900, 1150, 620, 95], [-4700, -900, 480, 70], [-3000, 2700, 380, 50], [3600, 2500, 700, 110], [900, 4700, 560, 80], [4800, -200, 520, 85]];
 // mountain waterfalls beside the river's: the x of the north-south line each is searched along (city.js)
-const FALL_X = [-430, 760];
+const FALL_X = []; // the desert cliffs are dry: only the river's own fall
 
 // camera: review shots and the scripted fly-through
 // position + look-at; keys 1-6

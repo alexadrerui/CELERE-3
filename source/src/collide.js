@@ -8,8 +8,8 @@ const COL = new Float64Array(3); // last query: floor, ceiling, 1 where the floo
 let landY = null; // set by main.js once the world is built
 const TWX = new Float64Array(6), TWZ = new Float64Array(6); for (let k = 0; k < 6; k++) { TWX[k] = TOWER_R * cos(TOWERS[k]); TWZ[k] = TOWER_R * sin(TOWERS[k]); }
 const WQA0 = 205 * DEG, WQA1 = 290 * DEG; // sector of the west quay's steps, seen from its centre
-// great crystal: height over distance from its axis (profile in world.js, 0.7 m margin)
-const crystalY = (d) => { const q = max(d - 0.7, 0); return 44.4 + (q < 3.5 ? 95.5 + (3.5 - q) / 3.5 * 5.5 : q < 7.25 ? 84 + (7.25 - q) / 3.75 * 11.5 : (8.5 - q) / 1.25 * 84); };
+// great obelisk: height over distance from its axis, taken as round (meshObelisk, 0.7 m margin), else the drum
+const crystalY = (d) => { const q = max(d - 0.7, 0) / 1.2; return q < OBELISK.b * 0.66 ? 44.4 + OBELISK.h * (1 - q / OBELISK.b * 0.1) : q < OBELISK.b ? 44.4 + OBELISK.h * 0.93 : 45.4; };
 // tower of height h on its stepped island (meshTowerTrim)
 const towerY = (d, h) => { const q = max(d - 0.6, 0); return q < 2.75 ? 12.6 + h - 9 * q / 2.75 : q < 3.3 ? 12.6 + (3.3 - q) / 0.55 * (h - 9) : d < 4.3 ? 12.8 : d < 5.2 ? 12.2 : d < 7.6 ? 11.3 : d < 9.3 ? 9.3 : 7.7; };
 // solid buildings, from `hard` in city.js (main.js passes them as flat arrays)
@@ -17,10 +17,8 @@ let HD = null, HH = null, HV = null, HS = null;
 function setHard(h) { HD = new Float64Array(h.domes); HH = new Float64Array(h.halls); HV = new Float64Array(h.villas); HS = new Float64Array(h.shapes); }
 const HALL_TOP = LAND + 7.4 + 3.3 + 0.95; // two storeys and parapet (`hall` in plants.js)
 // dome of drum radius R: height over distance from its axis (meshDome)
-const domeY = (d, R) => {
-  const top = LAND + 0.9 + 8.5 + R * 0.12 + 0.5, q = max(d - 0.6, 0) / (R - 0.25);
-  return q < 1 ? top + R * 0.92 * sqrt(1 - pow(q, 2 / 0.85)) : d < R + 1.1 ? top : d < R + 1.9 ? LAND + 0.9 : d < R + 3.3 ? LAND + 0.6 : LAND + 0.3;
-};
+// temple of size R (meshTemple), taken as round: pylon and walls inside, its platform at the rim
+const domeY = (d, R) => (d < R * 0.75 ? LAND + 0.45 + R * 15 / 18 + 1.2 : d < R + 1 ? LAND + 0.5 * R * 15 / 18 : LAND + 0.5);
 // top of the building covering a place, or -1e9; r, t: polar coordinates
 function builtY(x, z, r, t) {
   let y = -1e9;

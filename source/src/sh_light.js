@@ -54,13 +54,14 @@ fn aerial(c: vec3f, ro: vec3f, rd: vec3f, d: f32) -> vec3f {
   let tr = exp(-od * vec3f(3.e-4, 3.4e-4, 4.e-4));
   // near haze is open-sky blue, far haze the horizon's colour, so distant sea and hills dissolve into the sky
   let ins = mix(skyLut(normalize(vec3f(rd.x, max(rd.y, 0.) + .035, rd.z))), skyLut(normalize(vec3f(-view.sun.z, .1, view.sun.x))) * vec3f(.9, 1., 1.12), .62 * exp(-od * 1.5e-4));
-  return c * tr + ins * (1. - exp(-od * 3.3e-4));
+  // desert dust: beyond a few kilometres the land dissolves into the sky just above the horizon, so no rim shows
+  return mix(c * tr + ins * (1. - exp(-od * 3.3e-4)), skyLut(normalize(vec3f(rd.x, max(rd.y, 0.) + .004, rd.z))), ss(3000., 7200., d) * (.85 + .15 * ss(8000., 20000., d)));
 }
 // energy pulse: two rings (the second fainter) running out at 60 m/s, carried by gold inlay, lighting what they pass
 fn pulseK(r: f32, x: f32) -> f32 { return exp(-sq((r - 22. - 60. * x) / 14.)) * ss(0., .35, x); }
 fn pulseAt(r: f32) -> vec3f {
   let k = (pulseK(r, view.pulse.x) + .55 * pulseK(r, view.pulse.x - .75)) * exp(-r / 420.);
-  return mix(vec3f(1., .88, .66), vec3f(.55, .35, 1.), sat(r / 340.)) * k;
+  return mix(vec3f(1., .88, .66), vec3f(1., .6, .25), sat(r / 340.)) * k;
 }
 `;
 

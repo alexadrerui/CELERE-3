@@ -1,4 +1,30 @@
-# ATLANTIS: ART BIBLE
+# LUXOR, THE LOST CITY: ART BIBLE
+
+## 0. Luxor overrides (read first; these win over anything below)
+
+The city has been transformed from Atlantis into **Luxor, the lost city**: the same plan of concentric rings, canals and six spokes, now a golden sandstone temple city on the **Nile**, at the edge of a **great desert**, at golden hour. The rendering rules of section 2 (fantasy photorealism, never stylized) apply unchanged. Wherever sections 1–14 describe Atlantis-specific content, read it through this mapping:
+
+| Atlantis (sections 1–14) | Luxor (what must be seen now) |
+|---|---|
+| White Thassos/Carrara marble | Warm golden **sandstone** and limestone, honed and weathered, iron-stained bedding; Nubian sandstone and Theban limestone are the real anchors |
+| Polished paving with gold inlay | Worn sandstone flags with gold inlay lines, **wind-blown sand** lying on treads, ledges and paving and banked against wall feet |
+| The open sea | **The Nile**: a broad deep green river around the city's south, east and west, with feluccas (lateen sails) and a low sandy far bank in the south |
+| Green shelf, farmland, wooded mountains | A narrow **green flood plain** of fields and palm groves along the Nile and the river; beyond it **sand desert**: dunes with sharp crests, slip faces and wind ripples; **bare tan cliffs** (the Theban hills) to the north |
+| The great crystal in a crystal lotus | A **great obelisk** with an electrum pyramidion, rising from a sandstone lotus with gold rims |
+| Six spiral crystal towers | Six **obelisks** on their islands |
+| Glass domes in the civic ring | **Temples**: battered twin-towered pylons with cavetto cornices, flagpoles, a pair of obelisks before the gate, a court of papyrus columns, a sanctuary block |
+| Crystal pylons on the plaza | **Sphinxes** around the plaza; the spokes are **avenues of sphinxes** facing across the way |
+| Cupolas on roofs | Roof **kiosks** of four papyrus columns under a cornice |
+| Indigo light-liquid | **Lapis lazuli** liquid: deep blue body with drifting **gold** filaments (falls on the podium tiers, the moat, the pool) |
+| Canals: turquoise Mediterranean | Canals: deep clear **Nile green**, over silty stone floors |
+| Cypress, olive, plane, pine | **Date palms** first (pinnate fronds, slender trunks), then tamarisk, sycamore fig, umbrella acacia; flowers sparse (oleander, bougainvillea), thickest by water |
+| Mountains behind | The Theban cliffs, and **three pyramids** with a great sphinx on the plateau north-west of the city |
+| Sky and haze | The same low WNW sun, with **dustier, warmer desert haze** |
+| "Inhabited, humid, abundant" | **Lost**: an oasis city half reclaimed by sand; lush only where water reaches; carved **hieroglyphs** (sunk relief in columns) on obelisks, pylons, walls and columns |
+
+The concept art in `concept-art/` shows Atlantis: use it only as the bar for rendering quality, lighting and composition, not for subject or palette. The yes/no tests of section 14 apply with the mapping above (e.g. test 5: rings and spokes around the obelisk; test 7: the obelisk and pyramids read as real dressed stone with metal caps; test 8: water present everywhere, including the lapis liquid; test 4: vegetation botanical, palms readable, lush only by water). Classical orders still do not belong; Egyptian forms (battered walls, cavetto cornices, papyrus columns, obelisks, pyramids, sphinxes) do.
+
+---
 
 This file defines **what the scene must look like**. It is written for both the developer and the visual critic, and contains no implementation guidance. Reference images live in `concept-art/` (the eight top-level images only; ignore the `rejected/` and `source/` subfolders). Section 3 says how to use them.
 

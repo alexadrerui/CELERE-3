@@ -1,7 +1,7 @@
 // shaders 1/4: shared code, textures and tables baked at load, sky and atmosphere
 // atmosphere (CPU side: the sun's colour at the ground)
 // Rayleigh + Mie + ozone, same constants as the sky shader; metres
-const ATM = { RG: 6360e3, RT: 6440e3, BR: [5.802e-6, 13.558e-6, 33.1e-6], BM: 0.85e-5, BME: 0.95e-5, BO: [0.65e-6, 1.881e-6, 0.085e-6], HR: 8000, HM: 1200 };
+const ATM = { RG: 6360e3, RT: 6440e3, BR: [5.802e-6, 13.558e-6, 33.1e-6], BM: 1.9e-5, BME: 2.3e-5, BO: [0.65e-6, 1.881e-6, 0.085e-6], HR: 8000, HM: 1500 }; // dusty desert air: more and higher haze
 const E0 = 16; // sun illuminance above the atmosphere, scene units
 // ground-to-sun transmittance, and the multiple-scattering factor PSI (Hillaire 2020) at the ground
 const atmo = () => {
@@ -121,11 +121,13 @@ fn sprigs(tile: i32, p0: vec2f) -> LA {
     }
     c = put(c, seg(p, vec2f(.5, 0.), vec2f(.5 + .05 * sin(4.7), .93)) - .008, .45, 0., .5);
   } else if (tile == 1) { // broad leaves: a loose cluster
-    for (var i = 0; i < 15; i++) {
+    // (many smaller leaves on a visible stalk: fewer big ones read as a stippled blob)
+    for (var i = 0; i < 26; i++) {
       let r = h22(vec2f(f32(i), 2.)); let r2 = h22(vec2f(f32(i), 5.)); let a = r.x * 6.283;
-      let o = vec2f(.5) + rot2(a) * (.05 + .2 * r.y);
-      c = leaf(c, p, o, o + rot2(a + (r2.x - .5) * 1.2) * (.2 + .1 * r2.y), .07 + .02 * r2.x, .65 + .35 * r2.y);
+      let o = vec2f(.5) + rot2(a) * (.04 + .24 * r.y);
+      c = leaf(c, p, o, o + rot2(a + (r2.x - .5) * 1.2) * (.13 + .08 * r2.y), .045 + .015 * r2.x, .6 + .4 * r2.y);
     }
+    c = put(c, seg(p, vec2f(.5, .02), vec2f(.5, .5)) - .006, .4, 0., .5);
   } else if (tile == 2) { // stone pine: fans of needles
     for (var k = 0; k < 7; k++) {
       let o = vec2f(.5) + (h22(vec2f(f32(k), 9.)) - .5) * .56; let ba = h21(vec2f(f32(k), 3.)) * 6.283;
@@ -220,7 +222,16 @@ fn carpet(c0: LA, p: vec2f, n: i32, sd: f32, ln: f32, wd: f32) -> LA {
   let g = fc.xy / ${LEAFPX}.; let tile = i32(g.x) + 4 * i32(g.y); var p = fract(g); p.y = 1. - p.y;
   var c = LA(1., .8, 0., .5);
   // vine tiles have a softer edge ramp
-  if (tile == 6 || tile >= 8) { c = wallFoliage(tile, p); return vec4f(c.sh, c.fl, c.id, sat(.5 - c.d * 60.)); }
+  if (tile == 6 || tile == 8 || tile == 9) { c = wallFoliage(tile, p); return vec4f(c.sh, c.fl, c.id, sat(.5 - c.d * 60.)); }
+  if (tile == 10) { // date palm frond: a rachis with stiff leaflets both sides, angled forward, shortening to the tip
+    for (var i = 0; i < 64; i++) {
+      let t = (f32(i >> 1) + .5 * f32(i & 1) + .3) / 32.4; let r = h22(vec2f(f32(i), 121.)); let sd = f32(i & 1) * 2. - 1.;
+      let q = vec2f(.5 + .004 * sd, .02 + t * .95); let ln = (.44 * pow(sin(PI * pow(t, .62)), .8) + .035) * (.85 + .3 * r.x);
+      c = leaf(c, p, q, q + rot2(1.571 - sd * (1.15 - .45 * t + (r.y - .5) * .25)) * ln, .013 + .006 * (1. - t), .62 + .38 * r.y);
+    }
+    c = put(c, seg(p, vec2f(.5, 0.), vec2f(.5, .985)) - .007 * (1. - p.y * .7), .4, 0., .5);
+    return vec4f(c.sh, c.fl, c.id, sat(.5 - c.d * 180.));
+  }
   // cypress: upright sprays, four mirrored copies per tile, around a solid core
   if (tile == 3) { let q = p * 2.; let cl = floor(q) % 2.; p = fract(q); if (cl.x > .5) { p.x = 1. - p.x; } p = p * .96 + .02; }
   if (tile == 3) { // cypress: dense sprays of scale leaves
@@ -310,8 +321,9 @@ fn clouds(rd: vec3f, base: vec3f) -> vec3f {
   let warm = view.sunc.rgb * (.13 + .5 * pow(sat(mu), 6.));
   let cool = skyLut(vec3f(-view.sun.x, .9, -view.sun.z)) * 1.5;
   let col = mix(cool, warm + cool * .6, lit);
-  let far = exp(-t / 26000.);
-  return mix(base, col, dn * .93 * far * ss(.012, .05, rd.y));
+  // far clouds sink into the dusty horizon haze instead of piling into a grey band along it
+  let far = exp(-t / 15000.);
+  return mix(base, mix(base, col, far), dn * .93 * far * ss(.015, .16, rd.y));
 }
 fn sky(rd: vec3f, disc: bool) -> vec3f {
   var c = skyLut(rd);

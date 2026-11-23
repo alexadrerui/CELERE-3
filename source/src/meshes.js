@@ -124,22 +124,18 @@ function meshPodiumStair(lod) {
 }
 
 // crystals
-// six-sided, faceted, gem-cut point; hover: floats over its plinth in the vertex shader (the pylons)
-function meshCrystal(prof, hover) { const mb = new MB(256); mb.ec = hover ? 255 : 0; mb.lathe(prof, { seg: 6, flat: true, a0: PI / 6, a1: PI / 6 + TAU }); return mb.build(); }
 const PETAL_W = (t) => 0.3 * pow(sin(PI * pow(t, 0.62)), 0.75) * (1 - 0.2 * t); // half width along a petal
 // lotus petal: pointed crystal leaf along +y, unit length, faceted both sides, slightly cupped
+// carved sandstone petal: a smooth, thick lens in section, cupped, unit length along +y; darker towards its foot,
+// where the petals crowd
 function meshPetal() {
-  const mb = new MB(512), S = 9;
-  const edge = PETAL_W, bend = (t) => -0.22 * t * t;
-  mb.ea = 1; mb.eb = 23; // crystal slab; thickness as a fraction of length (x 255)
-  for (const f of [1, -1]) for (const sd of [1, -1]) for (let i = 0; i < S; i++) {
-    const t0 = i / S, t1 = (i + 1) / S, tm = (t0 + t1) / 2, th = (t) => 0.045 * sin(PI * pow(t, 0.6)) + 0.004;
-    const R0 = [0, t0, bend(t0) + f * th(t0)], R1 = [0, t1, bend(t1) + f * th(t1)], E0 = [sd * edge(t0), t0, bend(t0) - 0.02 * sin(PI * t0)], E1 = [sd * edge(t1), t1, bend(t1) - 0.02 * sin(PI * t1)];
-    const Em = [sd * (edge(tm) * 0.52), tm, bend(tm) + f * th(tm) * 0.72];
-    // four facets around a raised middle per cell
-    const tri = (a, b, c) => { let n = vnorm(vcross([b[0] - a[0], b[1] - a[1], b[2] - a[2]], [c[0] - a[0], c[1] - a[1], c[2] - a[2]])); if (n[2] * f < 0) n = [-n[0], -n[1], -n[2]]; mb.tri(mb.v(a[0], a[1], a[2], n[0], n[1], n[2]), mb.v(b[0], b[1], b[2], n[0], n[1], n[2]), mb.v(c[0], c[1], c[2], n[0], n[1], n[2])); };
-    tri(R0, R1, Em); tri(R1, E1, Em); tri(E1, E0, Em); tri(E0, R0, Em);
+  const mb = new MB(1024), S = 16, A = 14; mb.ea = WEATHERED; const bend = (t) => -0.22 * t * t, th = (t) => 0.055 * pow(sin(PI * pow(t, 0.6)), 0.8) + 0.004, ring = [];
+  for (let i = 0; i <= S; i++) {
+    const t = i / S, w = PETAL_W(t) + 0.004, d = th(t), row = [];
+    for (let j = 0; j <= A; j++) { const a = j / A * TAU, c = cos(a), s = sin(a); row.push(mb.v(c * w, t, bend(t) - 0.02 * sin(PI * t) * (1 - abs(s)) + s * d, c * d, 0.15 * (1 - t), s * w, 0.5 + 0.5 * sstep(0.05, 0.55, t))); }
+    ring.push(row);
   }
+  for (let i = 0; i < S; i++) for (let j = 0; j < A; j++) mb.quad(ring[i][j], ring[i][j + 1], ring[i + 1][j + 1], ring[i + 1][j]);
   return mb.build();
 }
 // pale-gold rim along a petal's edge
@@ -158,17 +154,10 @@ function meshTowerTrim() {
   const mb = new MB(1 << 13);
   // round stepped island in the bay
   mb.lathe([[10.5, FLOOR_Y.mid - 0.2, M.QUAY], [10.5, 7.6, M.TRIM], [10.42, 7.7, M.TRIM], [9.3, 7.7, M.QUAY], [9.3, 9.2, M.TRIM], [9.22, 9.3, M.TRIM], [7.6, 9.3, M.MARBLE], [7.6, 11.2, M.TRIM], [7.5, 11.3, M.PAVE], [5.2, 11.3, M.TRIM], [5.2, 12.1, M.TRIM], [5.1, 12.2, M.TRIM], [4.3, 12.2, M.GOLD], [4.3, 12.7, M.GOLD], [4.2, 12.8, M.GOLD], [3.2, 12.8, M.GOLD]], { seg: 40, ao: (r, y) => (y < 8 ? 0.62 + 0.38 * sstep(3, 7.5, y) : 1) });
-  mb.mat = M.GOLD;
-  const pts = [], turns = 4.5, N = 150;
-  for (let i = 0; i <= N; i++) { const t = i / N, y = 12.8 + t * (TOWER.h - 4), a = t * turns * TAU, r = towerR(y - 12.6) * 0.92 + 0.3; pts.push([r * cos(a), y, r * sin(a), 0.2 * (1 - 0.5 * t)]); }
-  mb.tube(pts, 6, false);
-  // six ribs over the point, and two rings
-  const top = 12.6 + TOWER.h;
-  for (let k = 0; k < 6; k++) { const a = k / 6 * TAU, rib = []; for (let i = 0; i <= 8; i++) { const t = i / 8, y = top - TOWER.tip - 2 + t * (TOWER.tip + 3.2), r = (TOWER.r1 + 0.35) * pow(1 - t, 0.7) + 0.05; rib.push([r * cos(a), y, r * sin(a), 0.07]); } mb.tube(rib, 4); }
-  for (const [y, r] of [[top - TOWER.tip - 2, TOWER.r1 + 0.35], [top - TOWER.tip * 0.45, TOWER.r1 * 0.62]]) { const ring = []; for (let i = 0; i <= 18; i++) { const a = i / 18 * TAU; ring.push([r * cos(a), y, r * sin(a), 0.07]); } mb.tube(ring, 4, false); }
   return mb.build();
 }
-function meshPylonBase() { const mb = new MB(256); mb.mat = M.TRIM; mb.box(-1.1, 0, -1.1, 1.1, 1.5, 1.1, 0.07, false); mb.mat = M.GOLD; mb.box(-1.13, 1.15, -1.13, 1.13, 1.27, 1.13, 0.02); mb.mat = M.TRIM; mb.box(-0.85, 1.5, -0.85, 0.85, 1.75, 0.85, 0.06); return mb.build(); }
+// the great obelisk on the lotus drum: height and half width at its foot
+const OBELISK = { h: 92, b: 5.2 };
 
 // balustrade: marble posts and rails, crystal panels
 const BAL = 2.6; // module length
@@ -372,4 +361,114 @@ function meshCascades() {
   fall(85.03, 19.84, WATER, STAIR.hw + 0.7, 4.2); fall(70.53, 29.84, 19.9, STAIR.hw, 2.2); fall(58.03, 39.84, 29.9, STAIR.hw, 2.2); fall(21.02, 42.04, 39.95, 0, 1.6); fall(15.52, 44.44, 42.0, 0, 1.6);
   mb.ea = mb.eb = mb.ec = 0;
   return mb.build();
+}
+
+// Egypt: obelisks, pyramids, sphinxes, temples
+// sandstone (M.MARBLE) drawn with eb = GLYPH shows incised hieroglyphs in columns (fs in sh_scene.js)
+const GLYPH = 255, COURSES = 100, WEATHERED = 60; // ea = WEATHERED (eb 0): coarse, pitted, wind-scoured stone // eb = COURSES: big stepped courses of weathered blocks (the pyramids)
+// four-sided block battered from half sizes (hx0, hz0) at y0 to (hx1, hz1) at y1 around (cx, cz); flat faces, no bottom
+function frustum(mb, cx, cz, hx0, hz0, hx1, hz1, y0, y1, top = true) {
+  const S = [[-1, -1], [1, -1], [1, 1], [-1, 1]], P = (k, y, hx, hz) => [cx + S[k][0] * hx, y, cz + S[k][1] * hz];
+  for (let i = 0; i < 4; i++) {
+    const j = (i + 1) % 4, a0 = P(i, y0, hx0, hz0), b0 = P(j, y0, hx0, hz0), a1 = P(i, y1, hx1, hz1), b1 = P(j, y1, hx1, hz1);
+    const ex = b0[0] - a0[0], ez = b0[2] - a0[2], el = hypot(ex, ez), nx = ez / el, nz = -ex / el, inset = abs(nx) > 0.5 ? hx0 - hx1 : hz0 - hz1, n = vnorm([nx * (y1 - y0), inset, nz * (y1 - y0)]);
+    const V = (p, ao = 1) => mb.v(p[0], p[1], p[2], n[0], n[1], n[2], ao);
+    mb.quad(V(a0, 0.8), V(a1), V(b1), V(b0, 0.8));
+  }
+  if (top) { const V = (k) => { const p = P(k, y1, hx1, hz1); return mb.v(p[0], p[1], p[2], 0, 1, 0); }; mb.quad(V(0), V(3), V(2), V(1)); }
+}
+// Egyptian cornice over a block of half sizes (hx, hz) at y: torus roll, flaring cavetto, flat crown
+function cornice(mb, cx, cz, hx, hz, y, s) {
+  const m = mb.mat; mb.mat = M.TRIM; const e = mb.eb; mb.eb = 0;
+  mb.box(cx - hx - 0.12 * s, y, cz - hz - 0.12 * s, cx + hx + 0.12 * s, y + 0.3 * s, cz + hz + 0.12 * s, 0.1 * s, false);
+  frustum(mb, cx, cz, hx + 0.05 * s, hz + 0.05 * s, hx + 0.32 * s, hz + 0.32 * s, y + 0.3 * s, y + 0.9 * s, false);
+  frustum(mb, cx, cz, hx + 0.36 * s, hz + 0.36 * s, hx + 0.36 * s, hz + 0.36 * s, y + 0.9 * s, y + 1.1 * s);
+  mb.mat = m; mb.eb = e;
+}
+// obelisk H tall, half width b at the foot, glyphs on the shaft, electrum pyramidion; on a stepped plinth unless bare
+function meshObelisk(H, b, bare = false) {
+  const mb = new MB(1024), t = b * 0.66, ph = t * 2.6;
+  // glyphs scaled with the shaft (ea: 1 + 20 x ea/255 times the normal size), so a colossus is legible from afar
+  mb.mat = M.MARBLE; mb.eb = GLYPH; mb.ea = round(clamp((b * 0.7 - 1) / 20, 0, 1) * 255); frustum(mb, 0, 0, b, b, t, t, 0, H - ph, false); mb.eb = mb.ea = 0;
+  mb.mat = M.GOLD; frustum(mb, 0, 0, t, t, 0.02, 0.02, H - ph, H);
+  if (!bare) { mb.mat = M.TRIM; mb.box(-b * 1.6, -1.5, -b * 1.6, b * 1.6, 0, b * 1.6, 0.08, false); mb.box(-b * 2.3, -3, -b * 2.3, b * 2.3, -1.5, b * 2.3, 0.08, false); }
+  return mb.build();
+}
+// pyramid of half base B and height H: the casing stripped from its lower part, leaving stepped courses of core
+// blocks (a riser and a tread each, ~2.3 m, a little ragged), smooth casing above, capped with electrum
+function meshPyramid(B, H) {
+  const mb = new MB(1 << 13), c = 0.035, top = 0.8, k = B / H, n = round(H * top / 2.3), rng = RNG(round(B * 7));
+  mb.mat = M.MARBLE; mb.eb = COURSES;
+  const Y = (i) => i * H * top / n, W = []; for (let i = 0; i < n; i++) W.push((H - Y(i + 1)) * k + 1.1 + 0.4 * rng());
+  W.push(H * (1 - top) * k);
+  for (let i = 0; i < n; i++) {
+    frustum(mb, 0, 0, W[i], W[i], W[i] - 0.05, W[i] - 0.05, i ? Y(i) : -4, Y(i + 1), false); // riser
+    frustum(mb, 0, 0, W[i] - 0.05, W[i] - 0.05, W[i + 1], W[i + 1], Y(i + 1), Y(i + 1) + 0.03, false); // tread
+  }
+  mb.eb = 0; frustum(mb, 0, 0, H * (1 - top) * k, H * (1 - top) * k, B * c, B * c, H * top, H * (1 - c), false); // casing
+  mb.eb = 0; mb.mat = M.GOLD; frustum(mb, 0, 0, B * c, B * c, 0.05, 0.05, H * (1 - c), H);
+  return mb.build();
+}
+// sphinx on its plinth, facing +x: lion body, haunches, forepaws, a human head in a striped nemes. ~8 m long
+function meshSphinx(lod) {
+  const mb = new MB(2048), bv = lod ? 0 : 1;
+  mb.mat = M.TRIM; mb.box(-4.2, 0, -1.55, 4.2, 1.3, 1.55, 0.05 * bv, false); mb.box(-4.35, 1.3, -1.7, 4.35, 1.5, 1.7, 0.05 * bv);
+  // rounded masses (tubes; TRIM, the same stone: tubes carry a parameter MARBLE reads as "hovering")
+  const sides = lod ? 6 : 12; mb.mat = M.TRIM;
+  mb.tube([[-3.45, 2.0, 0, 0.45], [-3.0, 2.25, 0, 0.86], [-1.9, 2.38, 0, 0.92], [-0.5, 2.42, 0, 0.88], [0.6, 2.58, 0, 0.98], [1.25, 2.75, 0, 0.82]], sides); // back and belly
+  mb.tube([[0.7, 2.3, 0, 0.82], [1.35, 3.25, 0, 0.66], [1.62, 4.05, 0, 0.5]], sides); // chest and neck
+  for (const sd of [-1, 1]) {
+    mb.tube([[-3.15, 1.6, sd * 0.62, 0.38], [-2.75, 2.2, sd * 0.7, 0.62], [-2.05, 2.38, sd * 0.68, 0.56], [-1.35, 1.95, sd * 0.72, 0.4]], sides); // haunch
+    mb.tube([[-1.75, 1.72, sd * 0.86, 0.22], [-0.7, 1.7, sd * 0.92, 0.2], [-0.35, 1.68, sd * 0.92, 0.17]], lod ? 4 : 7); // hind paw
+    mb.tube([[0.95, 2.35, sd * 0.52, 0.34], [1.45, 1.8, sd * 0.52, 0.28], [2.3, 1.72, sd * 0.48, 0.24], [3.55, 1.7, sd * 0.46, 0.22]], lod ? 5 : 8); // foreleg and paw
+  }
+  if (!lod) mb.tube([[-3.4, 1.75, 0.95, 0.11], [-2.6, 1.62, 1.18, 0.1], [-1.4, 1.62, 1.2, 0.09], [-0.8, 1.76, 1.08, 0.11]], 5); // tail
+  // head: the nemes headcloth falling in lappets either side of the face, a striped crown, a beard
+  frustum(mb, 1.55, 0, 0.42, 0.98, 0.48, 0.6, 3.45, 5.0, false);
+  mb.box(1.08, 4.92, -0.64, 2.18, 5.48, 0.64, 0.24 * bv + 0.04);
+  mb.mat = M.MARBLE; mb.box(1.62, 4.0, -0.42, 2.36, 5.02, 0.42, 0.14 * bv + 0.02); // face
+  mb.box(2.32, 4.28, -0.08, 2.5, 4.62, 0.08, 0.04 * bv); // nose
+  mb.mat = M.TRIM; mb.box(2.12, 3.45, -0.1, 2.34, 4.05, 0.1, 0.05 * bv); // beard
+  mb.mat = M.GOLD; mb.box(2.15, 5.15, -0.07, 2.36, 5.6, 0.07, 0); // uraeus
+  return mb.build();
+}
+// papyrus-bundle column r in radius, h tall, closed-bud capital and abacus, centred at (cx, cz) from y
+function column(mb, cx, cz, y, r, h, lod) {
+  const prof = [[r * 1.25, y, M.TRIM], [r * 1.25, y + 0.35], [r * 0.98, y + 0.4, M.MARBLE], [r * 1.02, y + 0.8], [r * 0.86, y + h * 0.82], [r * 0.82, y + h * 0.84, M.GOLD], [r * 0.82, y + h * 0.855, M.MARBLE], [r * 1.08, y + h * 0.9], [r * 0.95, y + h * 0.95], [r * 0.7, y + h * 0.97, M.TRIM], [r * 0.7, y + h]];
+  mb.eb = GLYPH; mb.lathe(prof, { seg: lod > 1 ? 6 : lod ? 8 : 14, cx, cz, crease: 40 }); mb.eb = 0;
+  mb.mat = M.TRIM; mb.box(cx - r * 0.95, y + h, cz - r * 0.95, cx + r * 0.95, y + h + 0.45, cz + r * 0.95, lod ? 0 : 0.03);
+}
+// temple of size R facing +x: twin-towered pylon with a cornice, flagpole niches and a gate; a pair of obelisks in
+// front; a court of papyrus columns under architraves; a sanctuary block behind. Pylon faces carved with glyphs.
+// Returns { mesh, top }
+function meshTemple(R, lod) {
+  const mb = new MB(1 << 14), s = R / 18, H = 15 * s, px = R * 0.62;
+  mb.mat = M.TERRACE; mb.box(-R * 1.05, -0.6, -R * 0.66, R * 1.2, 0.45, R * 0.66, 0.05, false);
+  mb.mat = M.STEP; for (let i = 0; i < 3; i++) mb.box(R * 1.2, -0.6, -R * 0.2, R * 1.2 + 0.4 * (3 - i), 0.15 * i, R * 0.2, 0.02, false);
+  // pylon: two battered towers either side of the gate
+  for (const sd of [-1, 1]) {
+    const cz = sd * R * 0.33; mb.mat = M.MARBLE; mb.eb = GLYPH;
+    frustum(mb, px, cz, 2.6 * s, R * 0.27, 2.0 * s, R * 0.22, 0.45, 0.45 + H, false); mb.eb = 0;
+    cornice(mb, px, cz, 2.0 * s, R * 0.22, 0.45 + H, s);
+    if (!lod) { mb.mat = M.GOLD; for (const o of [-0.4, 0.4]) mb.tube([[px + 2.7 * s, 0.45, cz + o * R * 0.2, 0.18 * s], [px + 2.5 * s, 0.45 + H * 1.25, cz + o * R * 0.2, 0.12 * s]], 5); }
+  }
+  // gate: jambs and lintel between the towers
+  mb.mat = M.MARBLE; mb.eb = GLYPH; mb.box(px - 1.8 * s, 0.45, -R * 0.11, px + 1.8 * s, 0.45 + H * 0.12, -R * 0.07, 0.04 * s, false); mb.box(px - 1.8 * s, 0.45, R * 0.07, px + 1.8 * s, 0.45 + H * 0.12, R * 0.11, 0.04 * s, false);
+  mb.box(px - 1.8 * s, 0.45 + H * 0.12, -R * 0.11, px + 1.8 * s, 0.45 + H * 0.72, R * 0.11, 0.04 * s, false); mb.eb = 0;
+  cornice(mb, px, 0, 1.8 * s, R * 0.11, 0.45 + H * 0.72, s * 0.8);
+  // court: side walls, two rows of columns, architraves
+  const ch = H * 0.62, cr = 0.75 * s, x0 = -R * 0.38, x1 = px - 3.4 * s, nc = max(3, round((x1 - x0) / (3.3 * s)));
+  for (const sd of [-1, 1]) {
+    mb.mat = M.MARBLE; mb.eb = GLYPH; frustum(mb, (x0 + px) / 2 - 1, sd * R * 0.58, (px - x0) / 2, 0.7 * s, (px - x0) / 2, 0.55 * s, 0.45, 0.45 + ch * 0.8, false); mb.eb = 0;
+    cornice(mb, (x0 + px) / 2 - 1, sd * R * 0.58, (px - x0) / 2, 0.55 * s, 0.45 + ch * 0.8, s * 0.6);
+    for (let i = 0; i <= nc; i++) column(mb, mix(x0, x1, i / nc), sd * R * 0.36, 0.45, cr, ch, lod);
+    mb.mat = M.TRIM; mb.box(x0 - cr, 0.45 + ch + 0.45, sd * R * 0.36 - cr, x1 + cr, 0.45 + ch + 1.3 * s, sd * R * 0.36 + cr, lod ? 0 : 0.04);
+  }
+  // sanctuary behind the court
+  const sx = -R * 0.72, sh = H * 0.7; mb.mat = M.MARBLE; mb.eb = GLYPH; frustum(mb, sx, 0, R * 0.33, R * 0.5, R * 0.3, R * 0.47, 0.45, 0.45 + sh, false); mb.eb = 0;
+  cornice(mb, sx, 0, R * 0.3, R * 0.47, 0.45 + sh, s);
+  // obelisks before the pylon
+  const ob = meshObelisk(H * 1.35, 0.75 * s, true);
+  for (const sd of [-1, 1]) { mb.mat = M.TRIM; mb.box(px + 5 * s - 1.2 * s, 0.45, sd * R * 0.2 - 1.2 * s, px + 5 * s + 1.2 * s, 1.5 * s + 0.45, sd * R * 0.2 + 1.2 * s, 0.05, false); mb.add(ob, px + 5 * s, 1.5 * s + 0.45, sd * R * 0.2); }
+  return { mesh: mb.build(), top: 0.45 + H + 1.1 * s };
 }

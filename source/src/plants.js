@@ -50,20 +50,36 @@ function meshTree(seed, P, lod) {
   tips.forEach((t, ti) => { if (lod > 2 && ti % (lod > 3 ? 9 : 3)) return; blob(mb, RNG(seed * 7919 + ti * 131 + 17), t, P.clump, nC, sz, P.tile, ctr, R, P); });
   return mb.build();
 }
-// Italian cypress: dark core wrapped in upright sprays
-function meshCypress(seed, lod) {
-  const mb = new MB(4096), rng = RNG(seed), H = 15, R = 1.3, rr = (t) => R * pow(sin(PI * pow(t, 0.5)), 0.75) * (1 - 0.3 * t) + 0.05;
-  mb.mat = M.BARK; if (lod < 4) mb.tube([[0, -0.4, 0, 0.2], [0, 1.2, 0, 0.17]], lod === 3 ? 3 : 5, false);
-  mb.mat = M.CORE; const prof = [], np = lod > 3 ? 3 : lod === 3 ? 4 : 9; for (let i = 0; i <= np; i++) { const t = i / np; prof.push([rr(0.04 + t * 0.94) * 0.66, (lod > 3 && !i ? -0.4 : 0.7) + t * (H - 1.2)]); }
-  mb.lathe(prof, { seg: lod > 3 ? 3 : lod === 3 ? 4 : lod ? 5 : 8, ao: () => 0.45 });
-  // LOD 4 (Low): six tall sprays
-  const n = [900, 260, 60, 18, 6][lod], w = 0.36 * [1, 1.7, 3.2, 5.5, 5.5][lod] * LEAFK, h = 0.52 * [1, 1.7, 3.2, 5.5, 10][lod] * LEAFK;
-  for (let i = 0; i < n; i++) {
-    const t = 0.03 + 0.95 * pow(rng(), 0.85), a = rng() * TAU, r = rr(t) * (0.78 + 0.2 * rng()), c = cos(a), s = sin(a), lean = 0.2 + 0.25 * rng();
-    const up = vnorm([c * lean, 1, s * lean]), rt = [-s, 0, c], N = vnorm([c, 0.35, s]);
-    mb.mat = M.LEAF + LT.CYPRESS; mb.ec = rng() * 255 | 0;
-    mb.card([c * r, 0.5 + t * (H - 0.9), s * r], [rt[0] * w, 0, rt[2] * w], [up[0] * h, up[1] * h, up[2] * h], N, 0.5 + 0.5 * rng() * (0.5 + 0.5 * t));
+// date palm: a slender trunk curving out of its lean, a dark boss of old frond bases, a crown of arching pinnate fronds
+// in a phyllotactic spiral, young ones raised, old ones drooping. Each frond is two strips in a shallow V along its
+// arc, carrying the frond tile (LT.FROND) from base to tip. Card i is the same at every LOD (coarser: fewer, coarser arcs).
+function meshPalm(seed, lod) {
+  const mb = new MB(2048), rng = RNG(seed), H = 10.5 + 3 * rng(), lean = 0.12 + 0.2 * rng(), la = rng() * TAU, n = lod > 2 ? 2 : 7, tp = [];
+  for (let i = 0; i <= n; i++) { const t = i / n, b = lean * H * (t * 0.7 + 0.3 * t * t); tp.push([cos(la) * b, -0.4 + t * (H + 0.4), sin(la) * b, (i ? 0.27 - 0.07 * t : 0.42)]); }
+  mb.mat = M.BARK; mb.tube(tp, [9, 7, 5, 3, 3][lod], false);
+  const top = tp[n];
+  mb.mat = M.CORE; mb.tube([[top[0], top[1] - 0.9, top[2], 0.3], [top[0], top[1] - 0.2, top[2], 0.48], [top[0], top[1] + 0.35, top[2], 0.32], [top[0], top[1] + 0.7, top[2], 0.08]], lod > 1 ? 4 : 7, false);
+  const nf = [26, 18, 12, 7, 5][lod], S = [6, 4, 2, 1, 1][lod], hw = 0.95 * [1, 1.08, 1.2, 1.4, 1.5][lod];
+  mb.mat = M.LEAF + LT.FROND;
+  for (let f = 0; f < nf; f++) {
+    const R = [rng(), rng(), rng(), rng(), rng()], a = f * 2.39996 + R[0] * 0.4, age = f / nf, el = (62 - 105 * pow(age, 0.85) + (R[1] - 0.5) * 20) * DEG;
+    const L = (3.9 + 1.4 * R[2]) * (age > 0.85 ? 0.85 : 1), droop = (0.35 + 0.5 * R[3]) * (0.5 + age), ca = cos(a), sa = sin(a), side = [-sa, 0, ca];
+    const ao = 0.55 + 0.45 * (1 - age);
+    let p = [top[0] + ca * 0.3, top[1] + 0.25 - age * 0.5, top[2] + sa * 0.3], prev = null;
+    mb.ec = R[4] * 255 | 0;
+    for (let k = 0; k <= S; k++) {
+      const s = k / S, e = el - droop * s * s, d = [cos(e) * ca, sin(e), cos(e) * sa], w = hw * pow(sin(PI * min(0.97, 0.08 + s * 0.92)), 0.5);
+      if (k) p = [p[0] + d[0] * L / S, p[1] + d[1] * L / S, p[2] + d[2] * L / S];
+      // the V: each half rises 22 degrees out of the frond's plane
+      const up = vnorm(vcross(side, d)), Nn = vnorm([ca * 0.5 + up[0], up[1] + 0.4, sa * 0.5 + up[2]]), wv = (sd) => [p[0] + (side[0] * 0.93 * sd + up[0] * 0.37) * w, p[1] + (side[1] * 0.93 * sd + up[1] * 0.37) * w, p[2] + (side[2] * 0.93 * sd + up[2] * 0.37) * w];
+      mb.eb = round(255 * (1 - s));
+      const l = wv(-1), r = wv(1);
+      mb.ea = 0; const A = mb.v(l[0], l[1], l[2], Nn[0], Nn[1], Nn[2], ao); mb.ea = 128; const B = mb.v(p[0], p[1], p[2], Nn[0], Nn[1], Nn[2], ao); mb.ea = 255; const C = mb.v(r[0], r[1], r[2], Nn[0], Nn[1], Nn[2], ao);
+      if (prev) { mb.quad(prev[0], prev[1], B, A); mb.quad(prev[1], prev[2], C, B); }
+      prev = [A, B, C];
+    }
   }
+  mb.ea = mb.eb = mb.ec = 0;
   return mb.build();
 }
 // shrub or flower mound: hollow low dome of cards (o.up: upright cards, the lavender's spikes)
@@ -181,14 +197,22 @@ function meshRock(seed, n = 9) {
   for (let i = 0; i < n; i++) for (let j = 0; j < n * 2; j++) { const a = i * (n * 2 + 1) + j; mb.quad(a, a + 1, a + n * 2 + 2, a + n * 2 + 1); }
   return mb.build();
 }
-// hovering craft: silver teardrop ~4.5 m long, nose +x
+// felucca: a painted wooden hull ~7 m long (bow +x) riding at y = 0, a raked mast and a long yard with a lateen sail
 function meshCraft() {
-  const mb = new MB(512), prof = []; mb.mat = M.ALLOY;
-  for (let i = 0; i <= 14; i++) { const t = i / 14, r = 0.62 * pow(sin(PI * pow(t, 0.5)), 0.9) * (1 - 0.3 * t); prof.push([r, -2.2 + 4.5 * t]); }
-  const lm = new MB(512); lm.mat = M.ALLOY; lm.lathe(prof, { seg: 16 }); const m = lm.build(), f = new Float32Array(m.vb), sb = new Int8Array(m.vb);
-  // lay it on its side, slightly flattened
-  for (let i = 0; i < m.nv; i++) { const o = i * 5, q = i * 20; mb.v(f[o + 1], f[o] * 0.85, f[o + 2], sb[q + 13], sb[q + 12] * 1.15, sb[q + 14]); }
-  for (let i = 0; i < m.ib.length; i += 3) mb.tri(m.ib[i], m.ib[i + 1], m.ib[i + 2]);
+  const mb = new MB(1024), prof = [];
+  for (let i = 0; i <= 14; i++) { const t = i / 14, r = 1.05 * pow(sin(PI * pow(t, 0.6)), 0.8) * (1 - 0.25 * t); prof.push([r, -3.3 + 7 * t]); }
+  const lm = new MB(512); lm.lathe(prof, { seg: 16 }); const m = lm.build(), f = new Float32Array(m.vb), sb = new Int8Array(m.vb), map = new Int32Array(m.nv);
+  // lay it on its side, flatten it and keep the part above y = -0.45 (the waterline), sheer rising to the ends
+  mb.mat = M.PLASTER;
+  for (let i = 0; i < m.nv; i++) { const o = i * 5, q = i * 20, x = f[o + 1], y = min(f[o] * 0.55, 0.35 + 0.05 * x * x), z = f[o + 2]; map[i] = mb.v(x, y, z, sb[q + 13], sb[q + 12] * 1.6, sb[q + 14], 0.85); }
+  for (let i = 0; i < m.ib.length; i += 3) mb.tri(map[m.ib[i]], map[m.ib[i + 1]], map[m.ib[i + 2]]);
+  mb.mat = M.TERRACE; mb.quad(mb.v(-2.9, 0.3, -0.6, 0, 1, 0, 0.6), mb.v(2.9, 0.3, -0.6, 0, 1, 0, 0.6), mb.v(2.9, 0.3, 0.6, 0, 1, 0, 0.6), mb.v(-2.9, 0.3, 0.6, 0, 1, 0, 0.6));
+  mb.mat = M.BARK; mb.tube([[0.9, 0.2, 0, 0.09], [1.2, 6.2, 0, 0.06]], 5, false);
+  const A = [-3.2, 0.9, 0.05], B = [3.6, 8.6, 0.05], C = [1.0, 1.0, 0.05];
+  mb.tube([[A[0], A[1], 0, 0.05], [B[0], B[1], 0, 0.04]], 4, false);
+  // sail: both faces, a little bellied
+  mb.mat = M.PLASTER;
+  for (const sd of [-1, 1]) { const D = [0.4, 4.6, 0.35 * sd + 0.05]; const P = (p) => [p[0], p[1], p[2] * sd]; mb.poly([P(A), P(D), P(B)], [0, 0, sd], 0.95); mb.poly([P(A), P(C), P(D)], [0, 0, sd], 0.95); }
   return mb.build();
 }
 
@@ -208,6 +232,8 @@ const fRound = (cx, cz, R, a0, a1, inward = false) => {
 const rrect = (cx, cz, hx, hz, r) => [
   fStraight(cx + hx, cz - hz + r, cx + hx, cz + hz - r), fRound(cx + hx - r, cz + hz - r, r, 0, PI / 2), fStraight(cx + hx - r, cz + hz, cx - hx + r, cz + hz), fRound(cx - hx + r, cz + hz - r, r, PI / 2, PI),
   fStraight(cx - hx, cz + hz - r, cx - hx, cz - hz + r), fRound(cx - hx + r, cz - hz + r, r, PI, PI * 1.5), fStraight(cx - hx + r, cz - hz, cx + hx - r, cz - hz), fRound(cx + hx - r, cz - hz + r, r, PI * 1.5, TAU)];
+// openings are near-flat lintels in Luxor (ARCH: the rise of the old round arch kept, as a share of its half width)
+const ARCH = 0.1;
 // one bay from u0, w wide, y0 to y1. o.t: 0 blank, 1 arched window, 2 open arch, 3 door; m pier width, s sill,
 // hs springing height, d reveal depth (wall thickness for an arcade)
 function bay(mb, F, u0, w, y0, y1, o) {
@@ -218,16 +244,16 @@ function bay(mb, F, u0, w, y0, y1, o) {
   // LOD 2 (Low, far villas): the wall one quad, a window a pointed pane just in front of it (5 triangles, not 40)
   if (lod > 1) {
     rect(u0, u0 + w, y0, y1, 0, [0, 0, 1], 1); if (!o.t) return;
-    const a = u0 + o.m, b = u0 + w - o.m, ys = y0 + o.s, yh = y0 + o.hs, ra = (b - a) / 2;
-    if (o.t === 2) { mb.mat = M.CORE; rect(a, b, ys, yh + ra * 0.7, 0.04, [0, 0, 1], 0.5); mb.mat = wall; return; } // arcade opening: a dark panel
+    const a = u0 + o.m, b = u0 + w - o.m, ys = y0 + o.s, ra = (b - a) / 2, rv = ra * ARCH, yh = y0 + o.hs + ra - rv;
+    if (o.t === 2) { mb.mat = M.CORE; rect(a, b, ys, yh + rv * 0.7, 0.04, [0, 0, 1], 0.5); mb.mat = wall; return; } // arcade opening: a dark panel
     mb.mat = M.WINDOW; mb.ec = 1 + floor(h2(round(u0 * 9 + F.L * 31), round(y0 * 9 + w * 57)) * 254);
-    const G = (u, v) => { mb.ea = round((u - a) / (b - a) * 255); mb.eb = round((v - ys) / (yh + ra - ys) * 255); return V(u, v, 0.04, 0, 0, 1, 0.8); };
-    const p0 = G(a, yh), p1 = G(b, yh); mb.quad(G(a, ys), G(b, ys), p1, p0); mb.tri(p0, p1, G((a + b) / 2, yh + ra));
+    const G = (u, v) => { mb.ea = round((u - a) / (b - a) * 255); mb.eb = round((v - ys) / (yh + rv - ys) * 255); return V(u, v, 0.04, 0, 0, 1, 0.8); };
+    const p0 = G(a, yh), p1 = G(b, yh); mb.quad(G(a, ys), G(b, ys), p1, p0); mb.tri(p0, p1, G((a + b) / 2, yh + rv));
     mb.ea = mb.eb = mb.ec = 0; mb.mat = wall; return;
   }
   if (!o.t) { if (o.foot) { rect(u0, u0 + w, y0, y0 + 1.4, 0, [0, 0, 1], 1); const i = [V(u0, y0 + 1.4, 0, 0, 0, 1, 1), V(u0 + w, y0 + 1.4, 0, 0, 0, 1, 1), V(u0 + w, y1, 0, 0, 0, 1, 1), V(u0, y1, 0, 0, 0, 1, 1)]; mb.quad(i[0], i[1], i[2], i[3]); } else rect(u0, u0 + w, y0, y1, 0, [0, 0, 1], 1); return; }
-  const a = u0 + o.m, b = u0 + w - o.m, uc = (a + b) / 2, ra = (b - a) / 2, ys = y0 + o.s, yh = y0 + o.hs, n = lod ? 5 : 10, d = o.d, arc = [];
-  for (let i = 0; i <= n; i++) { const th = PI * (1 - i / n); arc.push([uc + ra * cos(th), yh + ra * sin(th), cos(th), sin(th)]); }
+  const a = u0 + o.m, b = u0 + w - o.m, uc = (a + b) / 2, ra = (b - a) / 2, rv = ra * ARCH, ys = y0 + o.s, yh = y0 + o.hs + ra - rv, n = lod ? 5 : 10, d = o.d, arc = [];
+  for (let i = 0; i <= n; i++) { const th = PI * (1 - i / n); arc.push([uc + ra * cos(th), yh + rv * sin(th), cos(th), sin(th)]); }
   const faces = o.t === 2 ? [[0, 1], [-d, -1]] : [[0, 1]];
   for (const [ww, sg] of faces) {
     rect(u0, a, y0, y1, ww, [0, 0, sg], 1); rect(b, u0 + w, y0, y1, ww, [0, 0, sg], 1); if (o.s > 0) rect(a, b, y0, ys, ww, [0, 0, sg], 1);
@@ -242,13 +268,13 @@ function bay(mb, F, u0, w, y0, y1, o) {
     // glass set back in a gold frame with mullion and transom. Each vertex carries its 0-1 place in the pane and the pane
     // a per-pane random (the same at every LOD), from which the material builds a room behind the glass
     mb.mat = M.WINDOW; mb.ec = 1 + floor(h2(round(u0 * 9 + F.L * 31), round(y0 * 9 + w * 57)) * 254);
-    const G = (u, v, ao) => { mb.ea = round((u - a) / (b - a) * 255); mb.eb = round((v - ys) / (yh + ra - ys) * 255); return V(u, v, -d, 0, 0, 1, ao); };
+    const G = (u, v, ao) => { mb.ea = round((u - a) / (b - a) * 255); mb.eb = round((v - ys) / (yh + rv - ys) * 255); return V(u, v, -d, 0, 0, 1, ao); };
     mb.quad(G(a, ys, 0.8 * foot(ys)), G(b, ys, 0.8 * foot(ys)), G(b, yh, 0.8), G(a, yh, 0.8));
     const c = G(uc, yh, 0.8); for (let i = 0; i < n; i++) mb.tri(c, G(arc[i][0], arc[i][1], 0.75), G(arc[i + 1][0], arc[i + 1][1], 0.75));
     mb.ea = mb.eb = mb.ec = 0;
     if (!lod) {
       mb.mat = M.GOLD; const fw = min(0.14, ra * 0.16), z = -d + 0.04, g = [0, 0, 1];
-      rect(a, a + fw, ys, yh, z, g, 0.9); rect(b - fw, b, ys, yh, z, g, 0.9); rect(a, b, ys, ys + fw, z, g, 0.9); rect(a, b, yh - 0.03, yh + 0.03, z, g, 0.9); rect(uc - 0.03, uc + 0.03, ys, yh + ra - fw, z, g, 0.9);
+      rect(a, a + fw, ys, yh, z, g, 0.9); rect(b - fw, b, ys, yh, z, g, 0.9); rect(a, b, ys, ys + fw, z, g, 0.9); rect(a, b, yh - 0.03, yh + 0.03, z, g, 0.9); rect(uc - 0.03, uc + 0.03, ys, yh + rv - fw, z, g, 0.9);
       for (let i = 0; i < n; i++) { const p = arc[i], q = arc[i + 1], k = 1 - fw / ra; Q([[p[0], p[1], z], [q[0], q[1], z], [uc + (q[0] - uc) * k, yh + (q[1] - yh) * k, z], [uc + (p[0] - uc) * k, yh + (p[1] - yh) * k, z]], g, 0.9); }
     }
   }
@@ -301,15 +327,15 @@ function volume(mb, frames, y0, heights, bayW, style, o = {}) {
   const c = mb.v(cx, y, cz, 0, 1, 0), ids = rim.map((p) => mb.v(p[0], y, p[2], 0, 1, 0, 0.8)); for (let i = 0; i < ids.length; i++) mb.tri(c, ids[i], ids[(i + 1) % ids.length]);
   return y;
 }
-// small cupola: marble ring, glass panes between gold ribs, finial
+// roof kiosk (the name stays from the city's first life): four papyrus columns under an architrave and a cornice,
+// a shaded floor; R is about its half width
 function cupola(mb, cx, y, cz, R, lod) {
-  const seg = lod > 1 ? 6 : lod ? 8 : 12, H = R * 0.95, prof = [], np = lod > 1 ? 3 : 6;
-  mb.lathe(lod > 1 ? [[R + 0.25, y, M.TRIM], [R + 0.25, y + 0.58], [R, y + 0.58]] : [[R + 0.25, y, M.TRIM], [R + 0.25, y + 0.5], [R + 0.18, y + 0.58], [R, y + 0.58]], { seg, cx, cz });
-  for (let i = 0; i <= np; i++) { const t = i / np * PI / 2; prof.push([R * cos(t) + 0.02, y + 0.58 + H * sin(t), M.WINDOW]); }
-  mb.lathe(prof, { seg, cx, cz, flat: true });
-  mb.mat = M.GOLD;
-  if (!lod) for (let k = 0; k < seg; k++) { const a = k / seg * TAU, rib = prof.map((p) => [cx + (p[0] + 0.03) * cos(a), p[1] + 0.02, cz + (p[0] + 0.03) * sin(a), 0.05]); mb.tube(rib, 4, false); }
-  mb.lathe(lod > 1 ? [[0.35, y + 0.5 + H, M.GOLD], [0.12, y + 0.9 + H], [0, y + 1.7 + H]] : [[0.35, y + 0.5 + H, M.GOLD], [0.35, y + 0.75 + H], [0.12, y + 0.9 + H], [0.08, y + 1.5 + H], [0, y + 1.7 + H]], { seg: lod > 1 ? 4 : 6, cx, cz });
+  const m = mb.mat, h = R * 1.5 + 0.6, c = R * 0.78, r = 0.14 + R * 0.06;
+  mb.mat = M.TRIM; mb.box(cx - R - 0.2, y, cz - R - 0.2, cx + R + 0.2, y + 0.3, cz + R + 0.2, lod ? 0 : 0.04, false);
+  for (const sx of [-1, 1]) for (const sz of [-1, 1]) column(mb, cx + sx * c, cz + sz * c, y + 0.3, r, h, lod + 1);
+  mb.mat = M.MARBLE; mb.box(cx - R, y + 0.3 + h + 0.45, cz - R, cx + R, y + 0.3 + h + 0.45 + R * 0.35, cz + R, 0, true);
+  cornice(mb, cx, cz, R, R, y + 0.75 + h + R * 0.35, R * 0.35);
+  mb.mat = m;
 }
 const WIN = { t: 1, m: 0.55, s: 0.95, hs: 2.0, d: 0.28 }, DOOR = { t: 3, m: 0.6, s: 0.02, hs: 2.25, d: 0.34 };
 // garden villa: one or two rounded volumes of 2-3 storeys, arched windows, roof terraces, maybe a cupola. Returns
@@ -338,9 +364,9 @@ function meshVilla(seed, lod, wr) {
     const wing = rrect(cx, cz, wx, wz, 0.8), wt = volume(mb, wing, 0.2, hs.slice(0, st - 1), 3.0, (fi, i, n, s) => (inMain(wing[fi], i, n) || h2(seed * 3 + fi, i + s * 5) < 0.2 ? { t: 0 } : WIN), { lod });
     wTop = wt + 0.95;
     perim(wing, wt + 0.95); anchors.push([cx, wt, cz, rng() * 6, 1], [cx + 1.2, wt, cz - 0.5, rng() * 6, 1]);
-    if (rng() < 0.4) cupola(mb, cx, wt, cz, 1.5 + rng() * 0.5, lod);
+    if (rng() < 0.4) rng(); // (no roof kiosk on a house; the draw keeps the plan unchanged)
   }
-  if (rng() < 0.5) cupola(mb, 0, top, 0, 1.7 + rng() * 0.9, lod);
+  if (rng() < 0.5) rng();
   // collision shape: main radius if round, half sizes, parapet top; wing centre, half sizes (-1 if none), top
   return { mesh: mb.build(), anchors, wr: wOut, shape: [circ ? R : 0, hx, hz, top + 0.95, wOut ? wOut[0] : 0, wOut ? wOut[1] : 0, wOut ? wOut[2] : -1, wOut ? wOut[3] : -1, wTop] };
 }
@@ -370,27 +396,3 @@ function hall(mb, rc, a0, a1, dep, front, seed, anchors) {
   for (const [F, sg] of [[Fo, 1], [Fi, -1]]) { const m = max(1, round(F.L / 2.7)); for (let i = 0; i < m; i++) { const u = (i + 0.5) * F.L / m, p = F.P(u, top + 0.95, 0.16), nn = F.N(u, 0, 0, 1); anchors.push([p[0], top + 0.95, p[2], atan2(nn[0], nn[2]), 0]); if (i % 3 === 0) { const q = F.P(u, top, -1.6); anchors.push([q[0], top, q[2], 0, 1]); } } }
 }
 
-// great glass dome on a marble drum
-// { solid, glass }: drum with windows, floor and ribs; faceted glass shell
-function meshDome(R, lod) {
-  const mb = new MB(1 << 14), gl = new MB(4096), HD = 8.5 + R * 0.12, nb = round(TAU * R / (lod ? 9 : 4.6)) & ~1;
-  mb.lathe([[R + 4.2, -0.6, M.TRIM], [R + 4.2, 0.22], [R + 4.1, 0.3, M.STEP], [R + 2.8, 0.3, M.TRIM], [R + 2.8, 0.52], [R + 2.7, 0.6, M.STEP], [R + 1.4, 0.6, M.TRIM], [R + 1.4, 0.82], [R + 1.3, 0.9, M.PAVE], [R - 1, 0.9]], { seg: lod ? 24 : 48 });
-  const F = fRound(0, 0, R, 0, TAU), w = F.L / nb;
-  mb.mat = M.MARBLE;
-  for (let i = 0; i < nb; i++) bay(mb, F, i * w, w, 0.9, 0.9 + HD, i % (nb >> 2) === 0 ? { t: 3, m: w * 0.2, s: 0.02, hs: 4.6, d: 0.8, lod, foot: 1 } : { t: 1, m: w * 0.21, s: 1.5, hs: 5, d: 0.7, lod, foot: 1 });
-  const y = 0.9 + HD;
-  mould(mb, F, 0, F.L, [[-0.5, y, M.TRIM], [-0.5, y + 0.5], [0.3, y + 0.5], [0.36, y + 0.42], [0.36, y + 0.25], [0.1, y + 0.05], [0.1, y - 0.3], [0, y - 0.4]], lod ? 24 : 48);
-  // inside: drum's inner face and floor, seen through the glass
-  mb.lathe([[R - 0.5, y + 0.5, M.MARBLE], [R - 0.5, 0.9, M.GROUND], [0, 0.9]], { seg: lod ? 24 : 48, ao: (r, yy) => (yy < y ? 0.75 : 1) });
-  // glass shell: slightly pointed dome of flat panes between ribs and rings
-  const NR = lod ? 4 : 7, Rg = R - 0.25, prof = [], hgt = R * 0.92;
-  for (let i = 0; i <= NR; i++) { const t = i / NR * PI / 2 * 0.985; prof.push([Rg * pow(cos(t), 0.85) + 0.3 * (1 - i / NR), y + 0.5 + hgt * sin(t)]); }
-  const nm = lod ? nb : nb * 2;
-  gl.mat = 0; gl.lathe(prof, { seg: nm, flat: true });
-  mb.mat = M.GOLD;
-  for (let k = 0; k < nm; k += lod ? 2 : 1) { const a = k / nm * TAU; mb.tube(prof.map((p) => [(p[0] + 0.04) * cos(a), p[1] + 0.03, (p[0] + 0.04) * sin(a), k % 2 ? 0.055 : 0.1]), lod ? 3 : 4, false); }
-  for (let i = 1; i < NR; i++) { const ring = []; for (let k = 0; k <= nm; k++) { const a = k / nm * TAU; ring.push([(prof[i][0] + 0.04) * cos(a), prof[i][1] + 0.03, (prof[i][0] + 0.04) * sin(a), 0.07]); } mb.tube(ring, lod ? 3 : 4, false); }
-  const ty = prof[NR][1], tr = prof[NR][0];
-  mb.lathe([[tr + 0.4, ty - 0.3, M.GOLD], [tr + 0.4, ty + 0.3], [tr * 0.7, ty + 0.6], [tr * 0.7, ty + 2.2], [tr * 0.9, ty + 2.4], [0.3, ty + 3.6], [0.12, ty + 3.8], [0.1, ty + 5.4], [0, ty + 5.6]], { seg: lod ? 8 : 12 });
-  return { solid: mb.build(), glass: gl.build(), top: ty };
-}

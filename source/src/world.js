@@ -20,7 +20,7 @@ function buildWorld() {
   // crop, b parcel verge, a tilled field; LANDMAP there: crop colour (sqrt) and in alpha the earth between rows.
   // CROP per parcel kind: colour, earth between rows, wide rows.
   const MAP = new Uint8Array(2048 * 2048 * 4), LANDMAP = new Uint8Array(2048 * 2048 * 4);
-  const CROP = [null, [0.4, 0.31, 0.12, 0.3, 0], [0.26, 0.2, 0.4, 0.85, 1], [0.1, 0.19, 0.055, 0.9, 1], null, [0.2, 0.145, 0.095, 0.5, 0], [0.085, 0.2, 0.06, 0.22, 0]];
+  const CROP = [null, [0.4, 0.31, 0.12, 0.3, 0], [0.3, 0.33, 0.12, 0.85, 1], [0.1, 0.19, 0.055, 0.9, 1], null, [0.2, 0.145, 0.095, 0.5, 0], [0.085, 0.2, 0.06, 0.22, 0]];
   const paint = (x, z, rad, ch, val, soft = 1.5) => {
     const x0 = max(0, floor(x + 1024 - rad - soft)), x1 = min(2047, ceil(x + 1024 + rad + soft)), z0 = max(0, floor(z + 1024 - rad - soft)), z1 = min(2047, ceil(z + 1024 + rad + soft));
     for (let j = z0; j <= z1; j++) for (let i = x0; i <= x1; i++) { const d = hypot(i + 0.5 - 1024 - x, j + 0.5 - 1024 - z), k = clamp((rad + soft - d) / soft, 0, 1), o = (j * 2048 + i) * 4 + ch; MAP[o] = MAP[o] + (val - MAP[o]) * k; }
@@ -30,8 +30,11 @@ function buildWorld() {
     if (r < 420) { const zn = zoneOf(x, z), lat = spokeLat(x, z); MAP[o] = zn === 2 || lat < 8.5 ? 255 : 0; }
     else {
       LANDMAP[o] = 140; LANDMAP[o + 1] = 162; LANDMAP[o + 2] = 115; // grass, for a crop's edge to blend into
+      // alpha off the fields: how green the land is (the Nile's flood plain and the river banks); the rest is sand
+      const t = atan2(z, x), dc = coastT(t) - r, rdist = riverDist(x, z);
+      LANDMAP[o + 3] = 255 * max(sstep(380, 230, dc) * sstep(-30, 10, dc), sstep(150, 40, rdist), sstep(70, 20, r - RB.out(t)) * 0.7);
       // no fields at the canal, coast, river or under the woods
-      const t = atan2(z, x), zone = r < 1250 ? sstep(20, 50, r - RB.out(t)) * sstep(25, 60, coastT(t) - r) * sstep(RIV_SHELF + 2, RIV_SHELF + 10, riverDist(x, z)) * (1 - sstep(0.57, 0.62, woodAt(x, z))) : 0;
+      const zone = r < 1250 ? sstep(20, 50, r - RB.out(t)) * sstep(25, 60, coastT(t) - r) * sstep(RIV_SHELF + 2, RIV_SHELF + 10, riverDist(x, z)) * (1 - sstep(0.57, 0.62, woodAt(x, z))) : 0;
       if (zone > 0) {
         const pa = parcelAt(x, z), use = parcelUse(pa.b, pa.s), C = CROP[use.kind], tone = 0.8 + 0.4 * use.id;
         if (use.farm) MAP[o + 2] = 255 * zone * (1 - sstep(1, 3.2, pa.edge));
@@ -51,7 +54,7 @@ function buildWorld() {
   for (const ch of land.chunks) { put(type(ch.lods, K.SOLID, QL(1e9, 650, 500), QL(1e9, 1950, 1500), 1e9, 0, NO_NEAR | DRAW_LAST), ch.c[0], ch.c[1], ch.c[2]); if (LV) IF[(nI - 1) * 12 + 10] *= 2; }
 
   // bridges and their balustrades
-  const tPost = type([meshBalPost(0), meshBalPost(1)], K.SOLID, 130, 1e9, 700), tPanel = type([meshBalPanel(0), meshBalPanel(1)], K.CRYSTAL, 130, 1e9, 420, 0, NO_NEAR | THIN);
+  const tPost = type([meshBalPost(0), meshBalPost(1)], K.SOLID, 130, 1e9, 700), tPanel = type([meshBalPanel(0), meshBalPanel(1)], K.SOLID, 130, 1e9, 420);
   // balustrade from a to b, posts at both ends
   const balRun = (a, b) => {
     const L = hypot(b[0] - a[0], b[2] - a[2]), n = max(1, round(L / BAL)), k = L / n / BAL, q = qYaw(-atan2(b[2] - a[2], b[0] - a[0]));
@@ -78,19 +81,18 @@ function buildWorld() {
   // podium balustrades: plaza edge and the two ledges, between the stairways
   for (let k = 0; k < 6; k++) for (const [R, y] of [[57.2, 40.46], [69.3, 30.46], [83.8, 20.46]]) { const c = asin((STAIR.hw + 1) / R); balArc(R, y, SPOKES[k] + c, SPOKES[k] + PI / 3 - c); }
 
-  // crystal, lotus, pylons, towers
-  const tCrystal = type([meshCrystal([[8.5, 0], [7.25, 84], [3.5, 95.5], [0, 101]])], K.CRYSTAL);
-  put(tCrystal, 0, 44.4, 0);
-  const tPetal = type([meshPetal()], K.CRYSTAL, 1e9, 1e9, 1e9, 0, THIN), tRim = type([meshPetalRim()], K.SOLID);
+  // the great obelisk in a sandstone lotus, sphinxes round the plaza, obelisks on the tower islands
+  put(type([meshObelisk(OBELISK.h, OBELISK.b, true)], K.SOLID), 0, 44.4, 0);
+  const tPetal = type([meshPetal()], K.SOLID), tRim = type([meshPetalRim()], K.SOLID);
   for (let i = 0; i < 16; i++) {
     const inner = i % 2 === 0, a = i / 16 * TAU + 0.11, tilt = (inner ? 25 : 47) * DEG, len = inner ? 33 : 28, br = inner ? 10.4 : 13.2;
     const y = [sin(tilt) * cos(a), cos(tilt), sin(tilt) * sin(a)], x = [-sin(a), 0, cos(a)], z = vcross(x, y), q = qBasis(x, y, z);
     put(tPetal, br * cos(a), 44.5, br * sin(a), len, q); put(tRim, br * cos(a), 44.5, br * sin(a), len, q);
   }
-  const tPylon = type([meshCrystal([[0.25, 0], [1.2, 2.4], [1.32, 7], [0.95, 10.4], [0, 12.6]], true)], K.CRYSTAL), tPyBase = type([meshPylonBase()], K.SOLID);
-  for (let i = 0; i < 12; i++) { const a = (i + 0.5) / 12 * TAU, x = 50.4 * cos(a), z = 50.4 * sin(a); put(tPyBase, x, 40, z, 1, qYaw(-a)); put(tPylon, x, 41.7, z, 1, qYaw(-a)); }
-  const tw = [72, 80, 88].map((h) => { TOWER.h = h; return [type([meshCrystal([[TOWER.r0, 0], [TOWER.r1, h - TOWER.tip], [TOWER.r1 * 0.78, h - TOWER.tip * 0.72], [0, h]])], K.CRYSTAL), type([meshTowerTrim()], K.SOLID)]; });
-  for (let k = 0; k < 6; k++) { const a = TOWERS[k], v = tw[[72, 80, 88].indexOf(TOWER_HS[k])], x = TOWER_R * cos(a), z = TOWER_R * sin(a); put(v[0], x, 12.6, z, 1, qYaw(k * 0.4)); put(v[1], x, 0, z, 1, qYaw(k * 1.3)); }
+  const tSphinx = type([meshSphinx(0), meshSphinx(1)], K.SOLID, 90, 1e9, 2500);
+  for (let i = 0; i < 12; i++) { const a = (i + 0.5) / 12 * TAU; put(tSphinx, 49.2 * cos(a), 40, 49.2 * sin(a), 0.95, qYaw(-a)); }
+  const tw = [72, 80, 88].map((h) => { TOWER.h = h; return [type([meshObelisk(h * 0.62, 2.6, true)], K.SOLID), type([meshTowerTrim()], K.SOLID)]; });
+  for (let k = 0; k < 6; k++) { const a = TOWERS[k], v = tw[[72, 80, 88].indexOf(TOWER_HS[k])], x = TOWER_R * cos(a), z = TOWER_R * sin(a); put(v[0], x, 12.8, z, 1, qYaw(-a)); put(v[1], x, 0, z, 1, qYaw(k * 1.3)); }
 
   // water
   const wm = new MB(1 << 14);

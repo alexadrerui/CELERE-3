@@ -6,19 +6,22 @@ function populate({ type, put, paint, MAP, balRun, gH, hard }) {
   const rngA = RNG(20261), rngB = RNG(90210); let rng = rngA; const rr = (a, b) => a + (b - a) * rng();
   // plant types
   // leaf tints are square roots (the shader squares them); alpha seeds the flower colour
-  const TINT = { olive: [0.55, 0.59, 0.47], plane: [0.38, 0.49, 0.28], pine: [0.32, 0.42, 0.27], bloom: [0.4, 0.49, 0.3], cypress: [0.26, 0.34, 0.22], shrub: [0.36, 0.47, 0.28] };
+  // olive: tamarisk, plane: sycamore fig, pine: umbrella acacia, bloom: flowering acacia, cypress: date palm
+  const TINT = { olive: [0.54, 0.57, 0.45], plane: [0.38, 0.48, 0.27], pine: [0.42, 0.46, 0.28], bloom: [0.4, 0.49, 0.3], cypress: [0.45, 0.5, 0.29], shrub: [0.38, 0.47, 0.29] };
   // no two crowns the same green
   const tintOf = (k, seed) => { const c = TINT[k], v = 0.78 + 0.34 * rng(), w = rng(); return rgb(c[0] * v * (0.92 + 0.22 * w), c[1] * v * (0.94 + 0.1 * rng()), c[2] * v * (1.12 - 0.25 * w), (seed & 255) / 255); };
   // trees: two variants per kind, four LODs. CROWN: each variant's crown reach at scale 1, the planting spacing. Fixed,
   // not measured: re-measuring would move every tree; a new kind needs its own entry.
-  const CROWN = { olive: [5.091632558262888, 6.610734612997041], plane: [6.196414964566972, 7.050782126253885], pine: [6.66909194238408, 6.577589764967548], bloom: [4.719842778853082, 5.045086544746204], cypress: [1.3475943214130373, 1.3544764400252955] };
+  const CROWN = { olive: [5.091632558262888, 6.610734612997041], plane: [6.196414964566972, 7.050782126253885], pine: [6.66909194238408, 6.577589764967548], bloom: [4.719842778853082, 5.045086544746204], cypress: [4.3, 4.3] };
   const trees = {}, crowns = {};
   // Low: one level coarser, a fifth level from 250 m, forest thinning to a fifth beyond 750 m. Medium: the fifth level
   // replaces the fourth beyond 330 m. Distances in LODK units.
   const low = LV > 1, TL = QL([0, 1, 2, 3], [0, 1, 2, 4], [1, 2, 3, 4]);
   const treeType = (k, v, gen, ...d) => { const t = type(TL.map(gen), K.LEAF, ...d); crowns[t] = CROWN[k][v]; return t; };
-  for (const k of ['olive', 'plane', 'pine', 'bloom']) trees[k] = [0, 1].map((v) => treeType(k, v, (l) => meshTree(k.length * 97 + v * 31 + 5, SPECIES[k], l), ...QL([85, 215, 3400, 0, 0, 330], [110, 280, 3400, 0, 0, 430], [90, 220, 3400, 1500, 0, 500])));
-  trees.cypress = [0, 1].map((v) => treeType('cypress', v, (l) => meshCypress(41 + v, l), ...QL([90, 225, 3400, 0, 0, 340], [117, 292, 3400, 0, 0, 442], [95, 230, 3400, 1500, 0, 520])));
+  // Luxor's shade trees are acacias in several habits (the broadleaf crowns read as stippled cards): 'olive' and
+  // 'plane' keep their own seeds and spacing but grow as acacias
+  for (const k of ['olive', 'plane', 'pine', 'bloom']) trees[k] = [0, 1].map((v) => treeType(k, v, (l) => meshTree(k.length * 97 + v * 31 + 5, SPECIES[k === 'bloom' ? k : 'pine'], l), ...QL([85, 215, 3400, 0, 0, 330], [110, 280, 3400, 0, 0, 430], [90, 220, 3400, 1500, 0, 500])));
+  trees.cypress = [0, 1].map((v) => treeType('cypress', v, (l) => meshPalm(41 + v, l), ...QL([90, 225, 3400, 0, 0, 340], [117, 292, 3400, 0, 0, 442], [95, 230, 3400, 1500, 0, 520])));
   // crowns may overlap by `lap` of their radii at most, so leaves don't cross leaves (a third cheaper to draw); rows
   // planted first (spoke cypresses) have right of way
   const CELL = 12, planted = new Map(); let nTree = 0, nCut = 0;
@@ -37,18 +40,18 @@ function populate({ type, put, paint, MAP, balRun, gH, hard }) {
   const shrubDef = [[0.9, 0.8, LT.HYDRANGEA, 40, 0.34, { tile2: LT.BROAD, frac2: 0.5 }], [0.6, 0.55, LT.LAVENDER, 30, 0.34, { up: 1 }], [1.1, 0.9, LT.BLOSSOM, 44, 0.36, { tile2: LT.BROAD, frac2: 0.5 }], [1.0, 1.1, LT.BROAD, 30, 0.46, {}], [0.8, 0.5, LT.BLOSSOM, 30, 0.32, { tile2: LT.LAVENDER, frac2: 0.5 }]];
   const shrubs = shrubDef.map((d, i) => type([meshShrub(11 + i, d[0], d[1], d[2], d[3], d[4] * LEAFK, d[5]), meshShrub(11 + i, d[0], d[1], d[2], ceil(d[3] / 3), d[4] * 1.7 * LEAFK, d[5]), meshShrub(11 + i, d[0], d[1], d[2], 4, d[4] * 3.1 * LEAFK, d[5])], K.LEAF, 120, 290, 1400, 420));
   // flower seeds per kind: hydrangea blue / white / rose, lavender lilac, bougainvillea magenta, mixed
-  const SEEDS = [[3, 3, 4, 1], [2, 6], [0, 5, 5, 1], [4], [1, 4, 7, 0]];
+  const SEEDS = [[1, 7, 4, 4], [2, 6], [0, 5, 4, 4], [4], [1, 4, 4, 0]];
   const shrub = (k, x, y, z, s = 1) => put(shrubs[k], x, y, z, s * rr(0.8, 1.3), qYaw(rng() * TAU), tintOf('shrub', SEEDS[k][(rng() * SEEDS[k].length) | 0]), rr(0.85, 1.2));
   // width, drop, cards, blossom share
   const vines = [[2.8, 2.3, 36, 0.0], [2.8, 2.6, 40, 0.55], [2.6, 1.6, 30, 0.3]].map((d, i) => type([meshVine(71 + i, d[0], d[1], d[2], d[3]), meshVine(71 + i, d[0], d[1], ceil(d[2] / 3), d[3], 1.7), meshVine(71 + i, d[0], d[1], 7, d[3], 3.4)], K.LEAF, 140, 300, 1200, 400));
   const vine = (x, y, z, yaw, k = (rng() * 3) | 0) => put(vines[k], x, y, z, rr(0.9, 1.25), qYaw(yaw), tintOf('shrub', [0, 5, 1, 0, 2][(rng() * 5) | 0]), rr(0.8, 1.3));
   const tPlanter = type([meshPlanter(0), meshPlanter(1)], K.SOLID, 100, 1e9, 420), tUrn = type([meshUrn()], K.SOLID, 1e9, 1e9, 200);
-  const planter = (x, y, z, yaw) => { put(tPlanter, x, y, z, 1, qYaw(yaw)); const c = cos(yaw), s = sin(yaw), k = (rng() * 5) | 0; for (const o of [-0.65, 0.65]) shrub(k, x + c * o, y + 0.7, z - s * o, 0.62); };
+  const planter = (x, y, z, yaw) => { put(tPlanter, x, y, z, 1, qYaw(yaw)); const c = cos(yaw), s = sin(yaw), k = [1, 4, 0, 2, 1][(rng() * 5) | 0]; for (const o of [-0.65, 0.65]) shrub(k, x + c * o, y + 0.7, z - s * o, 0.62); };
   // [x, z, radius] claimed by buildings
   const occ = [], free = (x, z, r) => { for (const o of occ) if ((x - o[0]) ** 2 + (z - o[1]) ** 2 < (r + o[2]) ** 2) return false; return true; };
 
-  // civic ring: domes, halls, plazas
-  const domes = [15, 18.5, 22].map((R) => { const a = meshDome(R, 0), b = meshDome(R, 1); return { R, solid: type([a.solid, b.solid], K.SOLID, 260, 1e9, 1e9), glass: type([a.glass, b.glass], K.GLASS, 260, 1e9, 1e9, 0, NO_NEAR) }; });
+  // civic ring: temples, halls, plazas
+  const domes = [15, 18.5, 22].map((R) => ({ R, solid: type([meshTemple(R, 0).mesh, meshTemple(R, 1).mesh], K.SOLID, 260, 1e9, 1e9) }));
   const hm = new MB(1 << 16), hallAnchors = [];
   for (let k = 0; k < 6; k++) {
     const A = TOWERS[k];
@@ -58,10 +61,9 @@ function populate({ type, put, paint, MAP, balRun, gH, hard }) {
       while (edgeDist(r * cos(a), r * sin(a)) < d.R + 9.5 && tries++ < 40) { if (tries % 4 === 0 && d.R > 15) d = domes[domes.indexOf(d) - 1]; else { r -= 2.5; a += sd * 0.6 * DEG; } }
       if (AUTO && edgeDist(r * cos(a), r * sin(a)) < d.R + 5) console.log(`dome ${k}/${sd} overhangs its quay`);
       const x = r * cos(a), z = r * sin(a);
-      put(d.solid, x, LAND, z, 1, qYaw(rng() * 6)); put(d.glass, x, LAND, z); occ.push([x, z, d.R + 5.5]); hard.domes.push(x, z, d.R); paint(x, z, d.R + 9, 0, 255, 2);
-      // a garden under the glass
-      for (let i = 0; i < 9; i++) { const b = rng() * TAU, q = i ? rr(3, d.R - 6) : 0; tree(i ? ['olive', 'bloom', 'olive'][i % 3] : 'plane', x + q * cos(b), LAND + 0.9, z + q * sin(b), (i ? 0.95 : 1) * d.R / 18); }
-      for (let i = 0; i < 26; i++) { const b = rng() * TAU, q = rr(1, d.R - 2.5); shrub((rng() * 5) | 0, x + q * cos(b), LAND + 0.9, z + q * sin(b)); }
+      // the temple faces the sanctuary across the moat
+      rng(); put(d.solid, x, LAND, z, 1, qYaw(atan2(z, -x))); occ.push([x, z, d.R + 5.5]); hard.domes.push(x, z, d.R); paint(x, z, d.R + 9, 0, 255, 2);
+      for (let i = 0; i < 35; i++) rng();
       // beds and cypress around the steps, only on dry ground
       const dry = (X, Z, m) => zoneOf(X, Z) === 2 && edgeDist(X, Z) > m;
       for (let i = 0; i < 20; i++) {
@@ -105,18 +107,24 @@ function populate({ type, put, paint, MAP, balRun, gH, hard }) {
 
   // trees and flowers in the city
   // spoke cypress rows: the city's vertical rhythm
+  // the spokes are avenues of sphinxes facing across the way, with date palms behind them
+  const tSph = type([meshSphinx(0), meshSphinx(1)], K.SOLID, 90, 1e9, 1600);
   for (const s of SPOKES) for (let r = 128; r < 640; r += 8.5) for (const sd of [-1, 1]) {
     const x = r * cos(s) - sd * 10.6 * sin(s), z = r * sin(s) + sd * 10.6 * cos(s), zn = zoneOf(x, z);
-    if (r < 420 ? (zn === 4 || zn === 6) && edgeDist(x, z) > 13 && free(x, z, 1.5) : abs(angd(s, PI / 2)) > 0.1 && coastR(s) - r > 30 && rng() < 0.7) tree('cypress', x, r < 420 ? LAND : gH(x, z), z);
-    // planters along the paved edge
-    if (r < 420 && (zn === 2 || zn === 4 || zn === 6) && edgeDist(x, z) > 4) { const px = (r + 4.2) * cos(s) - sd * 8.4 * sin(s), pz = (r + 4.2) * sin(s) + sd * 8.4 * cos(s); if (zoneOf(px, pz) === zn && edgeDist(px, pz) > 3) planter(px, LAND, pz, -s); }
+    if (r < 420 ? (zn === 4 || zn === 6 || zn === 2) && edgeDist(x, z) > 9 && free(x, z, 1.5) : abs(angd(s, PI / 2)) > 0.1 && coastR(s) - r > 30 && rng() < 0.8) tree('cypress', x, r < 420 ? LAND : gH(x, z), z);
+    const L = r < 420 ? 7.3 : 7, px = (r + 4.2) * cos(s) - sd * L * sin(s), pz = (r + 4.2) * sin(s) + sd * L * cos(s), pzn = zoneOf(px, pz);
+    if (r < 420 ? (pzn === 2 || pzn === 4 || pzn === 6) && edgeDist(px, pz) > 5 : abs(angd(s, PI / 2)) > 0.1 && coastR(s) - r > 30 && riverDist(px, pz) > 20) {
+      const y = r < 420 ? LAND : gH(px, pz) - 0.3; put(tSph, px, y, pz, 0.75, qYaw(atan2(sd * cos(s), sd * sin(s))));
+      if (r >= 420) paint(px, pz, 3.2, 0, 255, 1.5);
+    }
   }
-  const pick = (x, z) => { const h = rng(), n = fbm(x / 60 + 5, z / 60 + 2, 2); return h < 0.17 ? 'cypress' : h < 0.17 + 0.28 * (1.3 - n) ? 'olive' : h < 0.56 ? 'plane' : h < 0.65 ? 'pine' : 'bloom'; };
+  // date palms above all, then tamarisk, sycamore fig, acacia, a few in flower
+  const pick = (x, z) => { const h = rng(), n = fbm(x / 60 + 5, z / 60 + 2, 2); return h < 0.72 ? 'cypress' : h < 0.72 + 0.06 * (1.3 - n) ? 'olive' : h < 0.83 ? 'plane' : h < 0.98 ? 'pine' : 'bloom'; };
   for (let gx = -420; gx < 420; gx += 6.3) for (let gz = -420; gz < 420; gz += 6.3) {
     const x = gx + rr(0, 5.8), z = gz + rr(0, 5.8), zn = zoneOf(x, z);
     if (zn !== 2 && zn !== 4 && zn !== 6) continue;
     const ed = edgeDist(x, z); if (ed < 2.6 || spokeLat(x, z) < 12.5 || !free(x, z, zn === 2 ? 2 : -1.2)) continue;
-    if (rng() > (zn === 2 ? 0.42 : 0.86)) continue;
+    if (rng() > (zn === 2 ? 0.2 : 0.22) + 0.55 * sstep(30, 8, ed)) continue; // an oasis: thick by the water, sparse on the sand
     const k = pick(x, z); tree(k, x, LAND, z, zn === 2 ? 0.9 : 1, undefined, undefined, zn !== 2); if (zn !== 2) paint(x, z, 1.4, 1, 180, 1.5); else { paint(x, z, 1.2, 0, 0, 0.8); paint(x, z, 1.2, 1, 255, 0.8); shrub(3, x + 0.5, LAND, z + 0.3, 0.6); shrub((rng() * 5) | 0, x - 0.4, LAND, z - 0.5, 0.6); }
   }
   // flower beds: drifts of one kind, thickest by villas and paths
@@ -125,8 +133,8 @@ function populate({ type, put, paint, MAP, balRun, gH, hard }) {
     if (zn !== 4 && zn !== 6 && zn !== 2) continue;
     const n = fbm(x / 23 + 9, z / 23 + 1, 3), ed = edgeDist(x, z);
     if (ed < 1.4 || spokeLat(x, z) < 8.3 || !free(x, z, 0.3)) continue;
-    const bed = zn === 2 ? (n > 0.64 && MAP[((floor(z + 1024) * 2048 + floor(x + 1024)) * 4)] < 128) : n > 0.43 || ed < 5 && n > 0.3;
-    if (!bed || rng() < 0.2) continue;
+    const bed = zn === 2 ? (n > 0.68 && MAP[((floor(z + 1024) * 2048 + floor(x + 1024)) * 4)] < 128) : n > 0.62 - 0.25 * sstep(25, 6, ed) || ed < 5 && n > 0.3;
+    if (!bed || rng() < 0.55) continue;
     shrub(floor(fbm(x / 41 + 3, z / 41 + 7, 2) * 9) % 5, x, LAND, z); paint(x, z, 1.3, 1, 255, 1);
   }
   // civic plazas: beds cut into the paving
@@ -146,17 +154,19 @@ function populate({ type, put, paint, MAP, balRun, gH, hard }) {
       next -= 2.7;
       if (f === RB.out && abs(angd(t, RIV_MOUTH.t)) * R < 16) { t += 2.7 / l; continue; } // river mouth: see below
       if (next < 0 && f !== RB.moat && f !== RB.chi && f !== RB.cho && spokeLat(x, z) > 18) { put(tLanding, x + nx * 0.25, 10.3, z + nz * 0.25, 1, qYaw(atan2(nx, nz))); next = rr(45, 85); t += 6 / l; continue; }
-      if (spokeLat(x, z) > 9 && fbm(t * R / 26 + R, 3.3, 2) > (f === RB.moat ? 0.6 : 0.47) && rng() < 0.8) vine(x + nx * 0.1, 10.28, z + nz * 0.1, atan2(nx, nz));
+      // (Luxor's quay walls are bare stone: no vines hang over them)
       t += 2.7 / l;
     }
   }
 
   // outer shelf: villas, woods, shore rocks
-  const inWood = (x, z) => woodAt(x, z) > 0.62;
+  // green land: the Nile's flood plain and the river banks (as painted in world.js); palm groves only there
+  const lushAt = (x, z) => { const r = hypot(x, z), d = coastR(atan2(z, x)) - r; return max(sstep(380, 230, d), sstep(150, 40, riverDist(x, z))); };
+  const inWood = (x, z) => woodAt(x, z) > 0.62 && lushAt(x, z) > 0.5;
   const onMap = (x, z, ch) => (abs(x) < 1023 && abs(z) < 1023 ? MAP[(floor(z + 1024) * 2048 + floor(x + 1024)) * 4 + ch] : 0);
   for (let i = 0, n = 0; i < 900 && n < 46; i++) {
     const t = rng() * TAU, r = rr(455, 800), x = r * cos(t), z = r * sin(t);
-    if (coastR(t) - r < 45 || spokeLat(x, z) < 20 || !free(x, z, 22) || abs(angd(t, PI / 2)) < 0.85 || riverDist(x, z) < 45) continue;
+    if (coastR(t) - r < 45 || lushAt(x, z) < 0.4 || spokeLat(x, z) < 20 || !free(x, z, 22) || abs(angd(t, PI / 2)) < 0.85 || riverDist(x, z) < 45) continue;
     const h = gH(x, z); if (abs(gH(x + 6, z) - h) + abs(gH(x, z + 6) - h) > 1.3 || h < 6) continue;
     villa(x, h - 0.1, z, rng() * TAU); n++; paint(x, z, 15, 3, 0, 6);
     for (let k = 0; k < 9; k++) { const b = rng() * TAU, q = rr(10, 20), X = x + q * cos(b), Z = z + q * sin(b); tree(k < 3 ? 'cypress' : pick(X, Z), X, gH(X, Z), Z); }
@@ -165,8 +175,8 @@ function populate({ type, put, paint, MAP, balRun, gH, hard }) {
   for (let gx = -1000; gx < 1000; gx += 8) for (let gz = -1000; gz < 1000; gz += 8) {
     const x0 = gx + 4, z0 = gz + 4, r = hypot(x0, z0), t = atan2(z0, x0); if (r < RB.out(t) + 14 || coastR(t) - r < 12 || r > 1050) continue;
     if (spokeLat(x0, z0) < 9 || !free(x0, z0, 6) || riverDist(x0, z0) < 19) continue;
-    if (inWood(x0, z0)) { const x = gx + rr(0, 8), z = gz + rr(0, 8); tree(pick(x, z), x, gH(x, z), z, 1.1, undefined, 0.6); } // woods: a closed canopy, crowns may meet
-    else if (rng() < 0.05 && onMap(x0, z0, 3) < 80) { const x = gx + rr(0, 8), z = gz + rr(0, 8); tree(rng() < 0.5 ? 'cypress' : 'olive', x, gH(x, z), z); } // a lone tree, not in a tilled field
+    if (inWood(x0, z0)) { const x = gx + rr(0, 8), z = gz + rr(0, 8); tree(rng() < 0.75 ? 'cypress' : pick(x, z), x, gH(x, z), z, 1.1, undefined, 0.6); } // palm groves: a closed canopy, crowns may meet
+    else if (rng() < 0.05 + 0.1 * lushAt(x0, z0) && onMap(x0, z0, 3) < 80 && (lushAt(x0, z0) > 0.3 || rng() < 0.15)) { const x = gx + rr(0, 8), z = gz + rr(0, 8); tree(rng() < 0.6 ? 'cypress' : rng() < 0.5 ? 'pine' : 'olive', x, gH(x, z), z); } // a lone tree, not in a tilled field
   }
   // Medium: coarse level from 150 m; Low: only a coarse one
   const rocks = [1, 2, 3].map((s) => type(QL([meshRock(s)], [meshRock(s), meshRock(s, 4)], [meshRock(s, 3)]), K.SOLID, LV === 1 ? 150 : 1e9, 1e9, 1500));
@@ -177,10 +187,10 @@ function populate({ type, put, paint, MAP, balRun, gH, hard }) {
   }
   // forest on the lower mountain slopes, thinning with height
   for (let gx = -2900; gx < 3100; gx += 15) for (let gz = -3300; gz < -430; gz += 15) {
-    const x = gx + rr(0, 15), z = gz + rr(0, 15), r = hypot(x, z); if (r < 700 || northOf(x, z) < 0.25) continue;
+    const x = gx + rr(0, 15), z = gz + rr(0, 15), r = hypot(x, z); if (r < 700 || northOf(x, z) < 0.25 || riverDist(x, z) > 60) continue; // desert hills: trees only along the river
     const h = gH(x, z); if (h < 12 || h > 330 + 130 * fbm(x / 300, z / 300, 2)) continue;
     if (abs(gH(x + 8, z) - h) + abs(gH(x, z + 8) - h) > 9 || fbm(x / 210 + 1, z / 210 + 5, 3) < 0.36 + h / 1400 || riverDist(x, z) < 15) continue;
-    tree(rng() < 0.55 ? 'pine' : rng() < 0.6 ? 'plane' : 'cypress', x, h, z, rr(1.2, 1.9), undefined, 0.55);
+    tree(rng() < 0.45 ? 'pine' : rng() < 0.15 ? 'plane' : 'cypress', x, h, z, rr(1.0, 1.4), undefined, 0.55);
   }
 
   // farmland: lanes, farms, orchards, hedges and walls
@@ -205,18 +215,18 @@ function populate({ type, put, paint, MAP, balRun, gH, hard }) {
       if (open(x, z, 15) && noTree(x, z, 11) && h > 6 && abs(gH(x + 8, z) - h) + abs(gH(x, z + 8) - h) < 1.1) {
         const c = PLASTER[(rng() * PLASTER.length) | 0], yaw = -atan2(z, x) + (rng() < 0.5 ? 0 : PI) + rr(-0.3, 0.3);
         put(tFarm[nFarm++ % 3], x, h - 0.12, z, rr(0.95, 1.1), qYaw(yaw), rgb(c[0], c[1], c[2])); occ.push([x, z, 11.5]); paint(x, z, 13, 3, 0, 4); paint(x, z, 12, 2, 0, 3); paint(x, z, 9.5, 0, 255, 3);
-        for (let k = 0; k < 5; k++) { const a = rng() * TAU, q = rr(12.5, 17), X = x + q * cos(a), Z = z + q * sin(a); tree(k < 2 ? 'cypress' : k < 4 ? 'olive' : 'plane', X, gH(X, Z), Z); }
+        for (let k = 0; k < 5; k++) { const a = rng() * TAU, q = rr(12.5, 17), X = x + q * cos(a), Z = z + q * sin(a); tree(k < 3 ? 'cypress' : k < 4 ? 'pine' : 'olive', X, gH(X, Z), Z); }
         for (let k = 0; k < 6; k++) { const a = rng() * TAU, q = rr(11.5, 14), X = x + q * cos(a), Z = z + q * sin(a); shrub((rng() * 5) | 0, X, gH(X, Z), Z); }
       }
     }
     // orchard rows following the parcel
     if (use.kind === 4) for (let fu = 0.1; fu < 0.92; fu += 7.6 / PB) for (let fv = 0.08; fv < 0.94; fv += 7.6 / secLen(b)) {
-      const [x, z] = parcelPt(b + fu, s + fv, b); if (open(x, z, 5)) tree(use.id < 0.5 ? 'olive' : 'bloom', x, gH(x, z), z, 0.62, undefined, 0.6);
+      const [x, z] = parcelPt(b + fu, s + fv, b); if (open(x, z, 5)) tree(use.id < 0.65 ? 'cypress' : 'olive', x, gH(x, z), z, use.id < 0.65 ? 0.85 : 0.62, undefined, 0.6); // date-palm groves
     }
   }
   // a boundary from one parcel corner to the next: nothing, hedge, dry-stone wall or tree row; pts ~6 m apart
   const edgeRun = (pts, pick01) => {
-    const kind = pick01 < 0.26 ? 0 : pick01 < 0.62 ? 1 : pick01 < 0.8 ? 2 : 3, sort = ['cypress', 'olive', 'plane'][floor(pick01 * 97) % 3]; if (!kind) return;
+    const kind = pick01 < 0.26 ? 0 : pick01 < 0.62 ? 1 : pick01 < 0.8 ? 2 : 3, sort = ['cypress', 'pine', 'cypress'][floor(pick01 * 97) % 3]; if (!kind) return;
     for (let i = 0; i + 1 < pts.length; i++) {
       const a = pts[i], c = pts[i + 1], x = (a[0] + c[0]) / 2, z = (a[1] + c[1]) / 2, L = hypot(c[0] - a[0], c[1] - a[1]), y = gH(x, z); if (L < 2 || y < 3 || !open(x, z) || onMap(x, z, 0) > 60) continue;
       const q = qYaw(-atan2(c[1] - a[1], c[0] - a[0])), k = L / 6.2; nEdge++;
@@ -237,7 +247,11 @@ function populate({ type, put, paint, MAP, balRun, gH, hard }) {
   // wild land: bushes, flower drifts, boulders
   // wherever nothing else stands, on the shelf and the open foothills
   const wild = (x, z, hill) => {
-    const dn = fbm(x / 75 + 2.2, z / 75 + 9.1, 2), q = rng();
+    const dn = fbm(x / 75 + 2.2, z / 75 + 9.1, 2), q = rng(), lush = lushAt(x, z);
+    if (lush < 0.4) { // desert: now and then a few stones, half buried
+      if (q > 0.965) for (let i = 0, n = 1 + ((rng() * 3) | 0); i < n; i++) { const X = x + rr(-5, 5), Z = z + rr(-5, 5), s = rr(0.3, hill ? 2.6 : 1.2) * (rng() < 0.3 ? 2 : 1); put(rocks[(rng() * 3) | 0], X, gH(X, Z) - 0.45 * s, Z, s, qMul(qYaw(rng() * 6), qAxis(1, 0, 0.3, rr(-0.4, 0.4))), rgb(0.95, 0.84, 0.7), rr(0.5, 0.9)); }
+      return;
+    }
     if (q < 0.12 + 0.5 * sstep(0.4, 0.7, dn)) { // bushes, alone or a few
       for (let i = 0, n = 1 + ((rng() * 3) | 0); i < n; i++) { const X = x + rr(-3.5, 3.5), Z = z + rr(-3.5, 3.5); put(shrubs[3], X, gH(X, Z) - 0.1, Z, rr(1.3, 2.7), qYaw(rng() * TAU), tintOf(rng() < 0.4 ? 'olive' : 'shrub', 4), rr(0.7, 1.1)); }
     } else if (q < 0.75 && fbm(x / 38 + 6.1, z / 38 + 1.7, 2) > 0.58) { // a drift of one flower
@@ -258,8 +272,8 @@ function populate({ type, put, paint, MAP, balRun, gH, hard }) {
   }
   rng = rngA;
 
-  // moored craft stay put; flying ones are moved by the vertex shader, so never culled and not baked into shadows
-  const tCraftIdle = type([meshCraft()], K.SOLID, 1e9, 1e9, 2500), tCraft = type([meshCraft()], K.SOLID, 1e9, 1e9, 1e9, 0, ALWAYS | NO_BAKE);
+  // feluccas: moored in the harbour, under sail on the Nile and in the canals
+  const tCraftIdle = type([meshCraft()], K.SOLID, 1e9, 1e9, 3000);
   // harbour: stepped quays, south pier, breakwaters
   const xm = new MB(1 << 15), S90 = PI / 2;
   // steps rising 0.18 m up and in from (r, y)
@@ -311,7 +325,7 @@ function populate({ type, put, paint, MAP, balRun, gH, hard }) {
   for (let k = -5; k <= 5; k++) {
     if (!k) continue; const a = S90 + k * 6.6 * DEG, c = cos(a), s = sin(a);
     xm.fr = [487 * c, 0, 487 * s, cos(-a), sin(-a), 1]; xm.mat = M.QUAY; xm.box(-0.5, -7, -1.6, 26, 1.1, 1.6, 0.06); xm.mat = M.TERRACE; xm.box(-0.5, 1.1, -1.7, 26.1, 1.36, 1.7, 0.05); xm.fr = null;
-    put(tCraftIdle, 505 * c - 3.6 * s, 1.5, 505 * s + 3.6 * c, 1, qYaw(-a), rgb(1, 1, 1, (k + 6) / 12));
+    put(tCraftIdle, 505 * c - 3.6 * s, 0.02, 505 * s + 3.6 * c, 0.85, qYaw(-a), rgb(1, 1, 1, (k + 6) / 12));
     if (k % 2) cupola(xm, 466.5 * c, 5.68, 466.5 * s, 2.4, 0);
   }
   xm.ea = 0;
@@ -320,7 +334,7 @@ function populate({ type, put, paint, MAP, balRun, gH, hard }) {
     if (abs(a - S90) < 0.03) continue; const c = cos(a), s = sin(a), i = round(a * 460 / 8.6);
     planter(450.5 * c, 10, 450.5 * s, -a + S90); planter(470.6 * c, 5.68, 470.6 * s, -a + S90);
     if (i % 3 === 0) { tree('cypress', 447 * c, 10, 447 * s, 0.9); tree(i % 2 ? 'bloom' : 'olive', 465 * c, 5.68, 465 * s, 0.9); put(tUrn, 484.5 * c, 1.36, 484.5 * s, 1.5); }
-    if (i % 5 === 2) put(tCraftIdle, 491.5 * c, 1.5, 491.5 * s, 1, qYaw(-a + (i % 2 ? 0.3 : 2.8)), rgb(1, 1, 1, (i * 37 % 255) / 255));
+    if (i % 5 === 2) put(tCraftIdle, 494 * c, 0.02, 494 * s, 0.75, qYaw(-a + (i % 2 ? 0.3 : 2.8)), rgb(1, 1, 1, (i * 37 % 255) / 255));
   }
   { const hm2 = new MB(1 << 15), an = []; for (const sd of [-1, 1]) { hall(hm2, 433, S90 + min(sd * 4.5, sd * 23) * DEG, S90 + max(sd * 4.5, sd * 23) * DEG, 9, 1, 9 + sd, an); hard.halls.push(433, S90 + sd * 13.75 * DEG, 9.25 * DEG, 9); }
     put(type([hm2.build()], K.SOLID), 0, 0, 0); for (const a of an) { if (a[4] === 0) { if (rng() < 0.5) vine(a[0], a[1], a[2], a[3]); } else shrub((rng() * 5) | 0, a[0], a[1], a[2], 1.1); } }
@@ -393,7 +407,7 @@ function populate({ type, put, paint, MAP, balRun, gH, hard }) {
     return pts;
   };
   // the river's fall: the way up the face from the source, reversed
-  tops.push(fallLine(riverX(RV.zh + 40), RV.zh + 40, 1, 1.6, 280, (x, z) => gH(x, z) > 330).reverse());
+  // (the river rises from a desert spring: no fall above its source)
   for (const fx of FALL_X) {
     // the others start above the steepest place on their line and find their own way down
     let z = -1300, best = 0;
@@ -415,7 +429,15 @@ function populate({ type, put, paint, MAP, balRun, gH, hard }) {
   fm.ea = fm.eb = 0;
   put(type([fm.build()], K.SOLID, 1e9, 1e9, 1e9, 0, NO_NEAR), 0, 0, 0);
 
-  // hovering craft (moved by the shader, see sh_scene.js)
-  for (let i = 0; i < 13; i++) { const t = rr(0, TAU), r = [232, 232, 398, 398, 105, 300, 232, 398, 232, 398, 105, 232, 300][i]; put(tCraft, r * cos(t), rr(9, 26), r * sin(t), 1, qYaw(-t - PI / 2), rgb(1, 1, 1, i / 13)); }
+  // the pyramids, and a great sphinx below them watching the city
+  for (const P of PYRAMIDS) { put(type([meshPyramid(P[2], P[3])], K.SOLID), P[0], pyrBase(P) - 0.5, P[1]); occ.push([P[0], P[1], P[2] * 1.5]); }
+  // the great sphinx: ~75 m long and ~25 m high (squashed upright), its plinth sunk into a bedrock enclosure
+  { const [x, z] = SPHINX; put(tSph, x, gH(x, z) - 1.5 * 11 * 0.55 + 0.5, z, 11, qYaw(atan2(z, -x)), 0xffffffff, 0.55); occ.push([x, z, SPHINX[2] + 5]); } // on the hollow's floor, its plinth sunk flush
+  // feluccas on the Nile (open water, clear of the shore) and a few in the canals, all on the same tack
+  for (let i = 0, n = 0; i < 400 && n < 34; i++) {
+    const x = rr(-2600, 2600), z = rr(-400, 2600); if (gH(x, z) > -3 || gH(x + 12, z) > -3 || gH(x - 12, z) > -3 || hypot(x, z) < 500) continue;
+    put(tCraftIdle, x, 0.02, z, rr(0.9, 1.25), qYaw(0.35 + rr(-0.25, 0.25)), rgb(1, 1, 1, rng())); n++;
+  }
+  for (const [R0, R1] of [[RB.civ, RB.mid], [RB.gar, RB.out]]) for (let k = 0; k < 4; k++) { const t = rr(0, TAU); if (spokeLat(cos(t) * 300, sin(t) * 300) < 30) continue; const r = (R0(t) + R1(t)) / 2; put(tCraftIdle, r * cos(t), WATER + 0.02, r * sin(t), 0.7, qYaw(-t - PI / 2), rgb(1, 1, 1, rng())); }
   if (AUTO) console.log(`villas ${nVilla} · trees ${nTree} (${nCut} left out for room)`);
 }

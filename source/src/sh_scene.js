@@ -2,7 +2,7 @@
 // material ids, shared by mesh generators and shaders
 const M = { MARBLE: 0, PAVE: 1, PLASTER: 2, GOLD: 3, QUAY: 4, FLOOR: 5, WINDOW: 6, BARK: 7, ALLOY: 8, TRIM: 9, TERRAIN: 10, CORE: 11, TERRACE: 12, GROUND: 13, STEP: 14, ROCK: 15, FALL: 16, SEA: 17, LEAF: 32 };
 // leaf atlas tiles (material = M.LEAF + tile): crowns, then vines (TRAIL fringe, VLEAF / VBLOSSOM carpets)
-const LT = { OLIVE: 0, BROAD: 1, PINE: 2, CYPRESS: 3, BLOSSOM: 4, HYDRANGEA: 5, TRAIL: 6, LAVENDER: 7, VLEAF: 8, VBLOSSOM: 9 };
+const LT = { OLIVE: 0, BROAD: 1, PINE: 2, CYPRESS: 3, BLOSSOM: 4, HYDRANGEA: 5, TRAIL: 6, LAVENDER: 7, VLEAF: 8, VBLOSSOM: 9, FROND: 10 };
 
 // per view, a compute pass frustum-tests each instance, picks its LOD and appends it to that mesh's list, drawn with one
 // indirect draw per mesh
@@ -113,9 +113,9 @@ fn transform(v: VI) -> VO {
 }
 @vertex fn vs(v: VI) -> VO { return transform(v); }
 // is this a vine tile (foliage lying on a surface)?
-fn onWall(tile: u32) -> bool { return tile == 6u || tile >= 8u; }
+fn onWall(tile: u32) -> bool { return tile == 6u || tile == 8u || tile == 9u; }
 // how much of a leaf card counts at uv: crowns fade over the outer quarter, vines all but a thin margin
-fn cardRim(uv: vec2f, tile: u32) -> f32 { let q = abs(uv - .5) * 2.; return 1. - ss(select(.72, .95, onWall(tile)), 1., max(q.x, q.y)); }
+fn cardRim(uv: vec2f, tile: u32) -> f32 { let q = abs(uv - .5) * 2.; return 1. - ss(select(.72, .95, onWall(tile) || tile == 10u), 1., max(q.x, q.y)); }
 // card uv in the atlas (4 x 3 tiles with a thin margin)
 fn atlasUV(tile: u32, uv: vec2f) -> vec2f { return (vec2f(f32(tile % 4u), f32(tile / 4u)) + uv * .98 + .01) / vec2f(4., 3.); }
 `;
@@ -163,14 +163,39 @@ fn triN(p: vec3f, dx: vec3f, dy: vec3f, w: vec3f, s: f32, rock: bool) -> vec3f {
 }
 // coverage of a line (half width hw, distance d) for a pixel fw wide: thin lines fade instead of aliasing
 fn line(d: f32, hw: f32, fw: f32) -> f32 { return sat((min(d + fw * .5, hw) - max(d - fw * .5, -hw)) / fw); }
-const MARB = vec3f(.82, .79, .735);
+const MARB = vec3f(.8, .65, .46); // golden sandstone
+// hieroglyphs: signs 0.36 m high in columns 0.5 m apart, ruled between; u runs along the wall, v up. Returns coverage
+fn glyphs(p: vec3f, N: vec3f, fw: f32) -> f32 {
+  let T = normalize(vec2f(-N.z, N.x) + vec2f(1e-5, 0.)); let u = dot(p.xz, T); let v = p.y;
+  let fade = sat(1. - fw / .05); if (fade <= 0.) { return 0.; }
+  let cw = .5; let ch = .4; let col = floor(u / cw); let fu = fract(u / cw) * cw;
+  let rule = 1. - ss(0., fw + .012, abs(fu - .02)); // ruled line between columns
+  let row = floor(v / ch); let f = vec2f((fu - .26) / .36, (fract(v / ch) - .5) * ch / .36);
+  let h = h22(vec2f(col, row) + 11.); let k = u32(h.x * 13.);
+  if (h.y < .12) { return rule * .5 * fade; } // a gap between words
+  var d = 1.;
+  if (k == 0u) { d = abs(length(f) - .3) - .07; } // sun disc
+  else if (k == 1u) { d = max(abs(f.x) - .42, abs(f.y) - .08); } // flat bar
+  else if (k == 2u) { d = min(max(abs(f.x) - .07, abs(f.y) - .42), length(f - vec2f(.05, .32)) - .12); } // reed leaf
+  else if (k == 3u) { d = max(length(f + vec2f(0., .15)) - .36, -(f.y + .15)); } // loaf
+  else if (k == 4u) { let z = f.y - .1 * sin(f.x * 22.); d = max(abs(z) - .05, abs(f.x) - .42); } // water
+  else if (k == 5u) { d = max(max(abs(f.x) - .3, abs(f.y) - .38), -max(abs(f.x) - .17, abs(f.y + .08) - .3)); } // house plan
+  else if (k == 6u) { d = min(length((f - vec2f(-.05, -.08)) * vec2f(1., 1.9)) - .28, min(length(f - vec2f(.22, .2)) - .1, max(abs(f.x + .05) - .05, abs(f.y + .36) - .08))); } // bird
+  else if (k == 7u) { d = min(abs(length(f - vec2f(0., .18)) - .15) - .05, max(abs(f.x) - .05, abs(f.y + .18) - .26)); d = min(d, max(abs(f.x) - .26, abs(f.y - .0) - .05)); } // ankh
+  else if (k == 8u) { d = min(length(f - vec2f(0., .2)) - .14, max(abs(f.x) - .05, abs(f.y + .1) - .3)); } // standing figure
+  else if (k == 9u) { d = min(abs(length((f - vec2f(0., .05)) * vec2f(1., 2.4)) - .32) - .05, length(f - vec2f(0., .05)) - .08); d = min(d, max(abs(f.x + .05) - .04, abs(f.y + .2) - .14)); } // eye
+  else if (k == 10u) { let z = f.x - .12 * sin(f.y * 9.); d = max(abs(z) - .05, abs(f.y) - .4); d = min(d, length(f - vec2f(.1, .38)) - .08); } // cobra
+  else if (k == 11u) { d = abs(length(f * vec2f(2.2, 1.)) - .38) - .05; } // feather
+  else { d = min(max(abs(f.x) - .4, abs(f.y + .3) - .06), min(max(abs(f.x + .2) - .05, abs(f.y) - .3), max(abs(f.x - .2) - .05, abs(f.y) - .3))); } // shrine
+  return max(1. - ss(-fw * 1.5 - .003, fw * 1.5 + .003, d * .36), rule * .5) * fade;
+}
 var<private> gVein: f32; // how veined the last marble() sample was
 fn marble(p: vec3f, dx: vec3f, dy: vec3f, w: vec3f, off: vec3f) -> vec4f { // rgb colour factor, a grain
   let A = tri(tNoiseA, p + off, dx, dy, w, .21); let B = tri(tNoiseA, p, dx, dy, w, 1.9); let C = tri(tNoiseA, p + off.zxy, dx, dy, w, .047);
   let v = A.b * .85 + .15 * ss(.5, .75, B.b); gVein = v;
   var c = vec3f(1. - .07 * (C.r - .5) - .05 * (A.r - .5) - .03 * (B.a - .5));
-  c = mix(c, vec3f(.62, .65, .7), v * .4);
-  c *= mix(vec3f(1.), vec3f(1.03, 1., .95), ss(.4, .65, C.r)); // warm and cool drifts
+  c = mix(c, vec3f(.88, .77, .66), v * .22); // faint iron-stained bedding in the sandstone
+  c *= mix(vec3f(1.), vec3f(1.05, .97, .88), ss(.4, .65, C.r)); // ochre and pale drifts
   return vec4f(c, B.a);
 }
 // polished paving, 2 m modules: rings and radials near the centre, a grid further out; gold inlay lines
@@ -183,9 +208,9 @@ fn pave(p: vec3f, dx: vec3f, dy: vec3f, fw: f32, n: vec3f) -> Mt {
   } else { let g = p.xz / 2.; let f = min(fract(g), 1. - fract(g)) * 2.; jd = min(f.x, f.y); cell = floor(g); }
   let hs = h22(cell + 3.);
   let w = triW(n); let m = marble(p, dx, dy, w, vec3f(hs.x, 0., hs.y) * 40.);
-  var o: Mt; o.alb = vec3f(.79, .76, .705) * m.rgb * (.93 + .14 * hs.x); o.rough = .13 + .12 * m.a + .08 * hs.y; o.metal = 0.; o.trans = 0.;
-  o.nb = triN(p, dx, dy, w, 2.3, false) * .035;
-  o.alb = mix(o.alb, o.alb * vec3f(.56, .6, .68), gVein * .55); // polished slabs show grey veins clearly
+  var o: Mt; o.alb = vec3f(.78, .65, .48) * m.rgb * (.9 + .2 * hs.x); o.rough = .42 + .14 * m.a + .1 * hs.y; o.metal = 0.; o.trans = 0.;
+  o.nb = triN(p, dx, dy, w, 2.3, false) * .08;
+  o.alb = mix(o.alb, o.alb * vec3f(.88, .78, .68), gVein * .45); // worn slabs show their bedding
   let j = line(jd, .005, fw); o.alb *= 1. - .5 * j; o.rough = mix(o.rough, .7, j);
   // inlay: 12 radials and rings on the podium, lines along the six spokes
   let a12 = (fract(th / (PI / 6.) + .5) - .5) * (PI / 6.); let a6 = (fract((th - PI * .5) / (PI / 3.) + .5) - .5) * (PI / 3.);
@@ -207,6 +232,11 @@ fn ground(p: vec3f, dx: vec3f, dy: vec3f, fw: f32, n: vec3f) -> Mt {
   let C = tri(tNoiseA, p, dx, dy, w, .06);
   o.alb = mix(vec3f(.07, .115, .035), vec3f(.15, .18, .06), ss(.3, .7, C.r + (A.g - .3) * .4)) * (.7 + .6 * B.a) * (.85 + .3 * A.a); o.rough = .85;
   o.nb = triN(p, dx, dy, w, 1.4, true) * .5;
+  // sand has blown in over the old lawns; they stay green only around the watered beds and trees
+  let dsand = mix(vec3f(.65, .5, .33), vec3f(.73, .59, .41), ss(.3, .7, A.r)) * (.9 + .2 * B.a) * (.94 + .12 * C.g);
+  let keep = ss(.3, .6, mp.g * .75 + (C.r - .5) * .7 + (A.g - .3) * .3);
+  o.alb = mix(dsand, o.alb, keep); o.rough = mix(.93, .85, keep);
+  o.nb = mix(vec3f(.36, 0., .93) * cos((p.x * .36 + p.z * .93) * 15. + A.r * 7.) * .3 * sat(1. - fw / .15), o.nb, keep);
   // planting beds: dark soil
   let bed = ss(.42, .58, mp.g + edge); o.alb = mix(o.alb, mix(vec3f(.15, .11, .075), vec3f(.07, .11, .04), ss(.4, .6, A.r)) * (.6 + .8 * B.a), bed);
   // paths: pale flagstones, grass in the gaps
@@ -232,12 +262,14 @@ fn terrain(p: vec3f, dx: vec3f, dy: vec3f, fw: f32, n: vec3f, tv: vec3f) -> Mt {
   let st = mix(.5, sin(h * .23 + A.r * 5. + L.r * 14.) * .5 + .5, sat(1. - fw / 2.5) * .7);
   let beds = sin(h * .085 + L.r * 7. + L.g * 3.) * .5 + .5; let bed2 = ss(.35, .65, sin(h * .31 + L.r * 11. + A.r * 2.) * .5 + .5);
   let sq3 = vec3f(1., .13, 1.); let stain = tri(tNoiseA, p * sq3, dx * sq3, dy * sq3, w, .21).r;
-  var rock = vec3f(.6, .585, .55) * (.72 + .08 * st + .16 * beds + .06 * bed2 + .2 * (A.b - .3)) * (.85 + .3 * B.a);
-  rock = mix(rock, vec3f(.3, .27, .23), .32 * ss(.5, .72, stain + (M.r - .5) * .3) * ss(.25, .45, 1. - n.y) * ss(.35, .6, L.r + R.g * .4));
+  var rock = vec3f(.74, .62, .48) * (.66 + .08 * st + .3 * beds + .1 * bed2 + .2 * (A.b - .3)) * (.85 + .3 * B.a);
+  rock = mix(rock, vec3f(.33, .24, .16), .32 * ss(.5, .72, stain + (M.r - .5) * .3) * ss(.25, .45, 1. - n.y) * ss(.35, .6, L.r + R.g * .4));
   rock = mix(rock, vec3f(.5, .4, .29), .14 * ss(.5, .8, L.g + R.r * .5));
   rock *= 1. - .35 * ss(.5, .8, A.b) * sat(1. - fw / 1.5);
   // finer bedding: ledges ~1 m apart with shade lines (and their tilt, below)
   let ledge = h * .9 + L.r * 9. + A.r * 1.2; let lk = sat(1. - fw / 2.5); rock *= 1. - .12 * ss(.55, .95, sin(ledge) * .5 + .5) * lk;
+  // thick strata a few metres apart, legible from kilometres: shaded under each bed's lip
+  let strat = h * .17 + L.r * 3. + R.r * 6.; rock *= 1. - .28 * ss(.6, .95, sin(strat) * .5 + .5) * sat(1. - fw / 9.);
   // relief from three sizes of fractured rock (up to 14 m) and the ledges: a face's crags
   let rn = triN(p, dx, dy, w, .07, true) * 1.7 + triN(p, dx, dy, w, .33, true) * 1.6 + triN(p, dx, dy, w, 2.1, true) * .5 + vec3f(0., cos(ledge) * .4 * lk, 0.);
   // grass: lush in hollows and by the river, dry gold on crests, tussock patches, worn earth, flowers up close
@@ -253,24 +285,35 @@ fn terrain(p: vec3f, dx: vec3f, dy: vec3f, fw: f32, n: vec3f, tv: vec3f) -> Mt {
   let muv = p.xz / 2048. + .5; var mp = vec4f(0.); var crop = vec4f(.3, .4, .2, 0.);
   if (max(abs(muv.x - .5), abs(muv.y - .5)) < .5) { mp = textureSampleGrad(tMap, sLin, muv, dx.xz / 2048., dy.xz / 2048.); crop = textureSampleGrad(tLand, sLin, muv, dx.xz / 2048., dy.xz / 2048.); }
   let field = ss(.35, .6, mp.a + (A.r - .5) * .25) * (1. - ss(.1, .2, steep));
+  // the desert: everywhere the Nile's flood plain and the river don't reach (tLand alpha off the fields, world.js).
+  // Pale wind-rippled sand, paler on the crests, warmer and redder in the hollows, with grey-brown gravel flats
+  let lush = ss(.35, .65, max(max(crop.a, ss(.02, .2, mp.a)), ss(.05, .5, wet)) + (L.r - .5) * .45 + (A.r - .5) * .2);
+  var sand = mix(vec3f(.64, .49, .32), vec3f(.74, .6, .42), sat(.5 - hollow * .7 + (L.g - .5) * .6)); // (per-vertex hollows only lightly: strongly they draw the mesh grid)
+  sand = mix(sand, vec3f(.56, .37, .22), ss(.45, .8, R.r + (L.r - .5) * .5) * .45);
+  sand = mix(sand, vec3f(.46, .37, .27) * (.8 + .4 * B.r), ss(.62, .8, L.r * .55 + M.r * .3 + R.g * .3) * ss(.3, -.3, hollow) * .35); // gravel flats
+  sand *= (.92 + .16 * A.a) * (.9 + .2 * B.a);
+  // ripples a hand apart across the wind, fading before they alias; slip faces keep none
+  let rph = (p.x * .36 + p.z * .93) * 15. + A.r * 7. + M.r * 11.; let rpk = sat(1. - fw / .15) * (1. - ss(.25, .45, steep));
+  let snb = vec3f(.36, 0., .93) * cos(rph) * .35 * rpk + triN(p, dx, dy, w, 1.4, false) * .25;
+  grass = mix(sand, grass, lush);
   let wob = L.r * 2.5 + (A.r - .5) * .35;
   let row = mix(mix(.5, ss(.3, .7, sin(r * 4.488 + wob) * .5 + .5 + (B.r - .5) * .5), sat(1. - fw / .45)), mix(.5, ss(.3, .7, sin(r * 2.244 + wob) * .5 + .5 + (B.r - .5) * .4), sat(1. - fw / .9)), mp.g);
   let earth = vec3f(.24, .175, .115) * (.72 + .56 * B.a) * (.85 + .3 * A.a);
   let plant = crop.rgb * crop.rgb * (.74 + .52 * A.a) * (.8 + .4 * B.a) * (.9 + .2 * M.r);
-  o.alb = mix(grass, mix(plant, earth, crop.a * (1. - row)), field); o.rough = .88; o.nb = triN(p, dx, dy, w, 1.4, true) * .5;
+  o.alb = mix(grass, mix(plant, earth, crop.a * (1. - row)), field); o.rough = mix(.94, .88, lush); o.nb = mix(snb, triN(p, dx, dy, w, 1.4, true) * .5, lush);
   // verge: rank darker grass; track: pale trodden earth
   o.alb = mix(o.alb, grass * vec3f(.66, .78, .62), mp.b * .8);
   let track = ss(.35, .6, mp.r + (A.r - .5) * .4 + (M.r - .5) * .2);
   o.alb = mix(o.alb, mix(vec3f(.43, .37, .28), vec3f(.52, .49, .43), ss(.2, .1, B.g)) * (.72 + .5 * B.a) * (.85 + .3 * A.a), track * .9);
   // forest floor under the mountain woods
-  let wood = north * ss(25., 60., h) * (1. - ss(260., 430., h + L.r * 160.)) * ss(.3, .5, L.r + A.r * .3);
+  let wood = lush * north * ss(25., 60., h) * (1. - ss(260., 430., h + L.r * 160.)) * ss(.3, .5, L.r + A.r * .3);
   o.alb = mix(o.alb, vec3f(.035, .07, .028) * (.6 + .8 * B.a), wood * .9);
   // gravel and pebbles by and in the river
   o.alb = mix(o.alb, mix(vec3f(.5, .47, .4), vec3f(.3, .28, .25), ss(.34, .14, A.g)) * (.7 + .5 * B.a), ss(.6, .82, wet + (A.r - .5) * .35 + (M.r - .5) * .25));
   // rock where steep or above the grass line, with an edge ragged at every scale (a soft gradient reads as haze)
-  let mtn = ss(60., 200., h); let edge = mix(.2, .3, mtn);
+  let mtn = ss(60., 200., h); let edge = mix(.2, .13, mtn); // bare rock comes through readily on the desert cliffs
   let rq = steep + (A.r - .5) * .15 + (M.r - .5) * .2 + (L.r - .5) * .22 * mtn + (B.a - .5) * .05 - hollow * .04;
-  let rk = max(ss(edge - .02, edge + .02, rq), ss(360., 600., h + L.r * 220.) * .8);
+  let rk = max(ss(edge - .02, edge + .02, rq) * mix(1., ss(25., 90., h), 1. - lush), ss(360., 600., h + L.r * 220.) * .8);
   // scree on nearly-steep slopes
   let scree = ss(edge - .09, edge - .03, rq) * (1. - rk) * ss(.4, .2, A.g) * mtn;
   o.alb = mix(o.alb, vec3f(.5, .47, .41) * (.7 + .5 * B.a), scree * .8);
@@ -280,9 +323,9 @@ fn terrain(p: vec3f, dx: vec3f, dy: vec3f, fw: f32, n: vec3f, tv: vec3f) -> Mt {
   let road = (1. - ss(4.6, 5.4, lat + (B.a - .5) * .6)) * ss(-3., 1., h) * (1. - ss(760., 900., r)) * step(0., cos(a6));
   if (road > 0.) { let m = marble(p, dx, dy, w, vec3f(0.)); let g = p.xz / 1.6; let f = min(fract(g), 1. - fract(g)) * 1.6; o.alb = mix(o.alb, vec3f(.72, .69, .62) * m.rgb * (1. - .4 * line(min(f.x, f.y), .012, fw)), road); o.rough = mix(o.rough, .5, road); o.nb *= 1. - road * .8; }
   // shore: wet rock and sand, then the sea bed with weed
-  let sand = vec3f(.6, .56, .46) * (.8 + .4 * B.a);
+  let bsand = vec3f(.62, .5, .36) * (.8 + .4 * B.a);
   let shore = 1. - ss(.3, 2.2, h + (A.r - .5) * 1.5);
-  o.alb = mix(o.alb, mix(sand, rock * .8, ss(.4, .62, A.g + L.r * .6 + rk)), shore * (1. - wet));
+  o.alb = mix(o.alb, mix(bsand, rock * .8, ss(.4, .62, A.g + L.r * .6 + rk)), shore * (1. - wet));
   if (h < .3) { let dk = ss(.3, -.4, h); o.alb *= mix(1., .62, dk); o.rough = mix(o.rough, .3, dk * ss(-.5, .3, h)); o.alb = mix(o.alb, vec3f(.05, .09, .05), ss(.5, .75, L.g * .5 + A.r) * ss(-.5, -3., h) * .8); }
   return o;
 }
@@ -329,11 +372,35 @@ const FLOWERS = array<vec3f, 8>(vec3f(.52, .08, .24), vec3f(.8, .36, .5), vec3f(
   } else if (mat == 0u || mat == 4u || mat == 9u) {
     // marble: honed walls in courses, smooth trim, quay walls with a waterline
     let m = marble(p, dx, dy, w, vec3f(0.));
-    o.alb = MARB * m.rgb; o.rough = select(.47, .3, mat == 9u) + .12 * (m.a - .5); o.nb = triN(p, dx, dy, w, 2.3, false) * .06;
-    if (mat != 9u) {
+    o.alb = MARB * m.rgb; o.rough = select(.66, .5, mat == 9u) + .12 * (m.a - .5); o.nb = triN(p, dx, dy, w, 2.3, false) * .12;
+    if (mat == 0u && i.uv.y > .5) {
+      // incised hieroglyphs (eb = GLYPH): columns of signs between ruled lines, fading before they alias
+      // sunk relief: the cut's upper wall in shade, its lower lip catching light
+      let gs = 1. + i.uv.x * 20.; let q = p / gs; let qf = fw / gs; // glyph size (meshObelisk scales them up)
+      // inside a cut, the wall under its top edge is in shade (the stone above is not cut) and its floor by the bottom
+      // edge catches the light
+      let wk = 1. - ss(.55, .8, abs(N.y)); let gl = glyphs(q, N, qf) * wk;
+      let ga = glyphs(q + vec3f(0., .022, 0.), N, qf) * wk; let gb = glyphs(q - vec3f(0., .022, 0.), N, qf) * wk;
+      o.alb *= (1. - .1 * gl - .55 * max(gl - ga, 0.)) * (1. + .3 * max(gl - gb, 0.)); o.rough = mix(o.rough, .85, gl);
+    }
+    if (mat == 0u && i.uv.y < .3 && i.uv.x > .15) {
+      // wind-scoured sandstone: coarse grain and pits, tone drifting in patches, darker in the scoured hollows
+      let W1 = tri(tNoiseA, p, dx, dy, w, .35); let W2 = tri(tNoiseA, p, dx, dy, w, 2.2);
+      let bd = sin(p.y * 2.6 + W1.r * 5. + i.q.x * 40.) * .5 + .5; // bedding lines, each petal (instance) its own
+      o.alb *= (.86 + .26 * W1.r) * (.92 + .16 * W2.a) * (1. - .12 * ss(.6, .95, bd) * sat(1. - fw / .4)) * (.94 + .12 * fract(i.q.y * 97.)); o.rough = .78;
+      o.nb += triN(p, dx, dy, w, 3.5, false) * .3;
+    }
+    if (mat == 0u && i.uv.y > .3 && i.uv.y < .5) {
+      // pyramid casing: 1.1 m courses of blocks, each its own tone, the course's foot in shade, worn edges
+      let cy = p.y / 1.1; let u = dot(p.xz, normalize(vec2f(-N.z, N.x) + vec2f(1e-5, 0.))) / 1.7 + h11(floor(cy)) * 5.;
+      let bl = h21(vec2f(floor(cy), floor(u))); let ed = min(min(fract(cy), 1. - fract(cy)) * 1.1, min(fract(u), 1. - fract(u)) * 1.7);
+      o.alb *= (.86 + .24 * bl) * (1. - .45 * line(fract(cy) * 1.1, .07, fw) - .2 * line(ed, .025, fw));
+      o.rough = .8; o.nb += vec3f(0., -.35 * sat(1. - fract(cy) * 4.) * sat(1. - fw / .5), 0.);
+    }
+    if (mat != 9u && !(i.uv.y > .3 && i.uv.y < .5)) {
       let wall = 1. - abs(N.y); let cy = p.y / .62; let j = line(min(fract(cy), 1. - fract(cy)) * .62, .004, fw) * wall;
       let ax = select(p.x, p.z, w.x > w.z) / 1.3 + h11(floor(cy)) * 7.; let vj = line(min(fract(ax), 1. - fract(ax)) * 1.3, .004, fw) * wall * ss(.6, .9, max(w.x, w.z));
-      o.alb *= (1. - .32 * max(j, vj)) * (.975 + .05 * h21(vec2f(floor(cy), floor(ax))));
+      o.alb *= (1. - select(.32, .14, i.uv.y > .5) * max(j, vj)) * (.975 + .05 * h21(vec2f(floor(cy), floor(ax))));
     }
     if (mat == 4u) {
       let d = p.y - select(${WATER}, 0., i.uv.x > .5); let B = tri(tNoiseA, p, dx, dy, w, .8);
@@ -355,12 +422,13 @@ const FLOWERS = array<vec3f, 8>(vec3f(.52, .08, .24), vec3f(.8, .36, .5), vec3f(
   else if (mat == 10u) { o = terrain(p, dx, dy, fw, N, i.uv); }
   else if (mat == 2u) {
     let A = tri(tNoiseA, p, dx, dy, w, .33); let B = tri(tNoiseA, p, dx, dy, w, 3.1);
-    o.alb = mix(vec3f(.79, .76, .7), i.tint.rgb, .55) * (1. - .08 * (A.r - .5) - .05 * (B.a - .5)); o.rough = .78; o.nb = triN(p, dx, dy, w, 3.3, false) * .2;
-  } else if (mat == 3u) { o.alb = vec3f(.86, .6, .22); o.metal = 1.; o.rough = .33; o.inlay = .14; } // gold answers the pulse a little
+    o.alb = mix(vec3f(.8, .68, .52), i.tint.rgb, .55) * (1. - .08 * (A.r - .5) - .05 * (B.a - .5)); o.rough = .78; o.nb = triN(p, dx, dy, w, 3.3, false) * .2;
+  } else if (mat == 3u) { o.alb = vec3f(1., .82, .48); o.metal = .5; o.rough = .24; // electrum, part burnished, part matte: it also takes the sun diffusely, never reads dark
+ o.inlay = .14; } // electrum: pale gold; // gold answers the pulse a little
   else if (mat == 5u) {
     let g = p.xz / 1.5; let f = min(fract(g), 1. - fract(g)) * 1.5; let A = tri(tNoiseA, p, dx, dy, w, .31); let B = tri(tNoiseA, p, dx, dy, w, 1.7);
     // canal floor slabs barely differ, or their grid shows through the water
-    o.alb = mix(vec3f(.66, .64, .57), vec3f(.74, .7, .58), A.r) * (.82 + .3 * B.a) * (1. - .16 * line(min(f.x, f.y), .015, fw)) * (.98 + .04 * h21(floor(g))); o.rough = .6; o.nb = triN(p, dx, dy, w, 1.1, true) * .35;
+    o.alb = mix(vec3f(.44, .4, .3), vec3f(.52, .46, .33), A.r) * (.82 + .3 * B.a) * (1. - .16 * line(min(f.x, f.y), .015, fw)) * (.98 + .04 * h21(floor(g))); o.rough = .6; o.nb = triN(p, dx, dy, w, 1.1, true) * .35;
   } else if (mat == 6u) {
     // window glass: the dim warm room behind; the lighting pass adds the Fresnel reflection (last G-buffer channel = glass)
     glass = 1.; o.rough = .05; o.alb = vec3f(.05, .046, .042);
@@ -400,7 +468,7 @@ const FLOWERS = array<vec3f, 8>(vec3f(.52, .08, .24), vec3f(.8, .36, .5), vec3f(
   else if (mat == 11u) { o.alb = i.tint.rgb * i.tint.rgb * .22; o.rough = .9; o.trans = .2; } // cypress core, planter soil
   else if (mat == 12u) {
     let g = p.xz / .9; let f = min(fract(g), 1. - fract(g)) * .9; let m = marble(p, dx, dy, w, vec3f(0.));
-    o.alb = vec3f(.76, .72, .64) * m.rgb * (.95 + .1 * h21(floor(g))) * (1. - .4 * line(min(f.x, f.y), .006, fw)); o.rough = .42; o.nb = triN(p, dx, dy, w, 2.3, false) * .05;
+    o.alb = vec3f(.76, .63, .46) * m.rgb * (.95 + .1 * h21(floor(g))) * (1. - .4 * line(min(f.x, f.y), .006, fw)); o.rough = .6; o.nb = triN(p, dx, dy, w, 2.3, false) * .05;
   } else if (mat == 15u) {
     let A = tri(tNoiseA, p, dx, dy, w, .5); let B = tri(tNoiseA, p, dx, dy, w, 2.4);
     o.alb = vec3f(.6, .57, .51) * i.tint.rgb * (.7 + .5 * A.r) * (.8 + .4 * B.a); o.rough = .8; o.nb = triN(p, dx, dy, w, .6, true) * 1.5 + triN(p, dx, dy, w, 3., true) * .5;
@@ -413,6 +481,15 @@ const FLOWERS = array<vec3f, 8>(vec3f(.52, .08, .24), vec3f(.8, .36, .5), vec3f(
     if (ac + (A.r - .5) * .55 + (B.a - .5) * .3 > .84) { discard; }
     let foam = ss(.3, .62, stp * 1.2 + (A.r - .5) * .9 + (B.r - .5) * .4 + ss(.45, .9, ac) * .35);
     o.alb = mix(vec3f(.1, .2, .19), mix(vec3f(.4, .5, .53), vec3f(.88, .9, .92), ss(.3, .72, A.r * .7 + B.a * .6)), foam); o.rough = mix(.1, .6, foam);
+  }
+  // the lost city: wind-blown sand lying on ledges, treads and paving, and banked against the feet of walls
+  if (mat == 0u || mat == 1u || mat == 2u || mat == 9u || mat == 12u || mat == 14u) {
+    let S = tri(tNoiseA, p, dx, dy, w, .085); let S2 = tri(tNoiseA, p, dx, dy, w, .6);
+    let lie = ss(.6, .92, N.y) * ss(.36, .56, S.r + (S2.a - .5) * .35 + (S2.r - .5) * .2);
+    let bank = ss(1.4 + .8 * S.g, 0., p.y - ${LAND} + (S2.r - .5) * .6) * ss(9.6, 9.9, p.y) * (1. - ss(.6, .9, N.y));
+    let dr = sat(max(lie, bank * ss(.3, .55, S.r + .15))) * (1. - o.inlay); // the swept inlay stays clear
+    o.alb = mix(o.alb, mix(vec3f(.67, .52, .35), vec3f(.74, .6, .42), S2.r) * (.9 + .2 * S2.a), dr);
+    o.rough = mix(o.rough, .93, dr); o.inlay *= 1. - dr; o.metal *= 1. - dr; o.nb = mix(o.nb, o.nb * .2, dr);
   }
   N = normalize(N - o.nb);
   // specular AA: in-pixel curvature widens the highlight instead of sparkling
