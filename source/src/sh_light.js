@@ -261,11 +261,7 @@ fn shafts(fc: vec2f, z: f32, rd: vec3f) -> vec3f {
   // a recessed pane still mirrors what's in front: the reveal dims it only a little
   if (glass) { env = surround(R, env, wp); so = mix(so, 1., .6); }
   col += env * envBRDF(f0, rough, nv) * so;
-  // the crystal's own light, close by: breathing and flaring with the pulse
-  let lc = vec3f(0., 60., 0.) - wp; let dl = dot(lc, lc);
-  col += dc * vec3f(.75, .9, 1.) * (.5 + .5 * view.pulse.y + 1.6 * view.pulse.z) * 28. / (dl + 90.) * sat(dot(N, lc) * inverseSqrt(dl) * .7 + .3) * ao;
-  // the pulse runs along gold inlay and sweeps a ring of light near the ground
-  col += pu * g0.a * 9. + dc * pu * .55 * exp(-max(wp.y - 12., 0.) / 40.) * (.4 + .6 * ao);
+  // (no light of its own at the centre: the obelisk is stone, and Luxor has no energy pulse)
   return vec4f(aerial(col, view.cam.xyz, rd, dist) + shafts(fc.xy, z, rd), 1.);
 }
 `;

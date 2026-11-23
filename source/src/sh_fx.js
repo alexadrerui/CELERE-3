@@ -126,7 +126,7 @@ const W_FX2 = /*wgsl*/`
   let amb = skyLut(vec3f(0., 1., 0.)) * 1.6 + view.sunc.rgb * .12;
   let shw = shadow(p, vec3f(0., 1., 0.));
   if (kind == 0u) { sig = vec3f(.5, .2, .26); scat = vec3f(.006, .022, .016) * amb; sA = .09; } // Nile-fed: deep green, a little silty
-  else if (kind == 1u) { sig = vec3f(2.4, 3., 1.3); scat = vec3f(.006, .022, .11) * (.35 + .65 * shw); sA = 2.5; }
+  else if (kind == 1u) { sig = vec3f(.34, .09, .1); scat = vec3f(.005, .03, .026) * amb; sA = .07; } // the podium's pools: clear, shallow water over pale stone
   else { sig = vec3f(.42, .12, .14); scat = vec3f(.005, .02, .019) * amb * (1. + 1.4 * sat(p.y * 2. + .15)); sA = .1; } // crests let more light through
   under = under * exp(-sig * (path + depth * .6)) + scat * (1. - exp(-sA * path));
   // what it mirrors
@@ -142,32 +142,19 @@ const W_FX2 = /*wgsl*/`
     refl = textureSampleLevel(tEnv, sLin, Rs, clamp(sqrt(rough2) * 9., 0., 3.5)).rgb;
     if (LV < 2 && view.misc.y < .5 && fw < 1.5) { let h = ssr(p, Rs, nz); refl = mix(refl, h.rgb, h.a * (1. - ss(.7, 1.5, fw))); }
   }
-  if (kind == 1u) { refl *= vec3f(.42, .44, .66); } // lapis mirror: dark, blue cast
-  var col = mix(under, refl, select(F, min(F + .14, .85), kind == 1u));
+  var col = mix(under, refl, F);
   // dark line where water meets stone
   if (kind < 2u) { col *= mix(.5, 1., ss(0., .35, thick0)); }
   // sun glitter
   let sh = shw;
   let H = normalize(V + L); let a = max(rough2 * 2., .0008);
   col += view.sunc.rgb * sh * min(ggxD(sat(dot(N, H)), sqrt(a)) * ggxV(sat(dot(N, L)), nv, sqrt(a)), select(90., 30., kind == 2u)) * sat(dot(N, L)) * (.02 + .98 * pow(1. - sat(dot(V, H)), 5.));
-  if (kind == 1u) {
-    // light-liquid: three layers of violet and rose filaments drifting round the ring at their own speeds, stirred by a
-    // swirl, with brightness waves and breathing. Whole-number texture turns around the ring avoid a seam where the angle wraps.
-    let nt = select(select(select(82., 56., r < 80.), 46., r < 65.), 25., r < 50.); let an = atan2(p.z, p.x) / (2. * PI); let rv = r / 8.;
-    let fdx = vec2f(fw / 30., 0.); let fdy = vec2f(0., fw / 30.); let tm = view.cam.w; let fl = tm * .03;
-    let sw = textureSampleGrad(tNoiseA, sRep, vec2f(an * round(nt * .07), rv * .11) + vec2f(fl * .5, tm * .011), fdx, fdy).rg - .5;
-    let f1 = textureSampleGrad(tNoiseA, sRep, vec2f(an * round(nt * .13), rv * .27) + vec2f(fl, tm * .004) + sw * .14 + sl * .05, fdx, fdy).b;
-    let f2 = textureSampleGrad(tNoiseA, sRep, vec2f(an * round(nt * .21), rv * .43) + vec2f(fl * 1.7, .3 - tm * .009) - sw * .11 - sl * .04, fdx, fdy).b;
-    let f3 = textureSampleGrad(tNoiseA, sRep, vec2f(an * round(nt * .47), rv * .93) + vec2f(fl * 2.8, tm * .017) + sw * .2, fdx * 2., fdy * 2.).b;
-    let wave = .72 + .28 * sin(r * .22 - tm * 1.5 + sw.x * 5.);
-    let glow = (f1 * .9 + f2 * .7 + f3 * .4) * wave * (.4 + 1.6 * exp(-r / 45.) + .35 * view.pulse.y + .8 * view.pulse.z) * (1. + 4. * pl) + pl * 1.2;
-    col += mix(vec3f(1., .62, .16), vec3f(1., .8, .36), sat(f2 * 1.4)) * ss(.5, .95, glow) * glow * .5 * (1. - F); // fine gold threads, not a wash
-  } else if (kind == 2u) {
+  if (kind == 2u) {
     // thin foam at the shore
     let f = textureSampleGrad(tNoiseA, sRep, p.xz / 5. + vec2f(view.cam.w * .02), dx / 5., dy / 5.);
     let edge = ss(.55, .0, depth + (f.r - .5) * .5 + .12 * sin(view.cam.w * .7 + f.a * 6.)) * ss(.25, .6, f.g + f.a * .5);
     col = mix(col, amb * .55 + view.sunc.rgb * sh * .22, edge * .8);
-  } else { col += vec3f(.4, .9, .85) * pl * .25; }
+  }
   return FO(vec4f(aerial(col, view.cam.xyz, rd, dist), 1.));
 }
 // podium falls: sheet, foam, mist (uv.x = 3, 4, 5; see meshCascades)
@@ -178,8 +165,8 @@ const W_FX2 = /*wgsl*/`
   let dq = vec2f(length(dpdx(p)), length(dpdy(p)));
   var N = normalize(i.n); if (dot(N, V) < 0.) { N = -N; }
   let sh = shadow(p, N); let pl = lum(pulseAt(r)); let live = .4 + 1.6 * exp(-r / 45.) + .35 * view.pulse.y + .8 * view.pulse.z;
-  // froth and mist: droplets, pale lilac in sky and sun light, with a little of the liquid's glow
-  let froth = vec3f(.75, .68, .6) * (skyLut(vec3f(0., 1., 0.)) * .8 + view.sunc.rgb * (.02 + .07 * sh)) + vec3f(1., .6, .2) * (.1 + .1 * live) * (1. + 3. * pl);
+  // froth and mist: white water droplets in sky and sun light
+  let froth = vec3f(.86, .89, .88) * (skyLut(vec3f(0., 1., 0.)) * .8 + view.sunc.rgb * (.03 + .1 * sh));
   var col: vec3f; var al: f32;
   if (kind == 3u) {
     let h = i.uv.z * 16.; let hb = i.uv.y * 16.; // metres fallen from the lip, metres left to the pool
@@ -197,14 +184,11 @@ const W_FX2 = /*wgsl*/`
     let grow = ss(.15, 3.5, h); let rope = ss(.42, .7, s1.r + (b.r - .5) * .35) * grow; let thin = ss(.55, .3, s1.r + (a.r - .5) * .3) * grow;
     let tg = normalize(vec3f(-N.z, 0., N.x)); N = normalize(N + tg * ((a.r - .5) * .3 + (b.a - .5) * (.12 + .75 * grow)) + vec3f(0., (b.r - .5) * .25 * grow, 0.));
     let nv = max(dot(N, V), 1e-3); let F = .03 + .97 * pow(1. - nv, 5.);
-    // the same liquid as the moat: indigo body, glowing filaments, violet-cast mirror, only a narrow sun glint
-    col = vec3f(.006, .022, .11) * (.35 + .65 * sh) * (.75 + .5 * a.r) * (1. - .5 * thin);
-    // filaments show little in the squeezed film at the lip
-    let glow = (f1 * .9 + f2 * .7) * live * (1. + 4. * pl) * mix(.25, 1., ss(.2, 2.5, h)) + pl * 1.2;
-    col += mix(vec3f(1., .62, .16), vec3f(1., .8, .36), sat(f2 * 1.4)) * glow * .45 * (.55 + .7 * rope);
-    col += vec3f(1., .62, .22) * rope * (.07 + .16 * b.r) * (.8 + .5 * view.pulse.y);
-    col = col * (1. - F) + sky(reflect(-V, N), false) * vec3f(.22, .24, .5) * min(F, .55) * (1. - .6 * rope);
-    col += view.sunc.rgb * sh * sunBRDF(N, V, vec3f(.01, .005, .05), vec3f(.03), mix(.1, .32, rope)) * .2;
+    // clear water: a glassy green-blue film at the lip that breaks into white frothy ropes as it falls
+    col = vec3f(.03, .075, .07) * (.35 + .65 * sh) * (.75 + .5 * a.r) * (1. - .5 * thin);
+    col = mix(col, froth * (.75 + .4 * b.r), rope * (.55 + .25 * f1) * ss(.2, 2.5, h) + .15 * f2 * grow);
+    col = col * (1. - F) + sky(reflect(-V, N), false) * min(F, .55) * (1. - .6 * rope);
+    col += view.sunc.rgb * sh * sunBRDF(N, V, vec3f(.02, .04, .04), vec3f(.03), mix(.1, .32, rope)) * .2;
     // the last stretch before the pool churns to froth
     let foot = ss(min(2.4, .28 * (h + hb)) * (.55 + .9 * a.r), 0., hb) * (.72 + .2 * rope + .28 * b.a);
     col = mix(col, froth * (.7 + .5 * b.r), sat(foot));

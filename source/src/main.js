@@ -408,9 +408,8 @@ function render() {
   for (let i = 0; i < 16; i++) { U[32 + i] = PVP[i]; PVP[i] = U[i]; }
   setCam(U, cx, cy, cz, F[YAW], F[PIT], W, H, JIT[j] * 2 / W, JIT[j + 1] * 2 / H);
   U[O_CAM + 3] = t; U[O_JIT + 2] = fr; U[O_JIT + 3] = -1e9;
-  // heartbeat: x = seconds since the last pulse, y = slow crystal breathing, z = flare as each pulse leaves
-  const tp = t % PULSE, tq = (tp < PULSE / 2 ? tp : tp - PULSE) / 0.7;
-  U[O_PULSE] = tp; U[O_PULSE + 1] = 0.5 + 0.5 * sin(t * TAU / 7); U[O_PULSE + 2] = exp(-tq * tq);
+  // Luxor has no energy pulse (Atlantis's heartbeat): the ring is parked far beyond the world, with no breathing or flare
+  U[O_PULSE] = 1e4; U[O_PULSE + 1] = 0; U[O_PULSE + 2] = 0;
   U[O_MISC] = F[RESET]; U[O_MISC + 1] = 0; U[O_MISC + 2] = LODK; U[O_MISC + 3] = 1; U[O_LODC] = cx; U[O_LODC + 1] = cy; U[O_LODC + 2] = cz; U[O_LODC + 3] = 1 / LODK;
   // canal mirror only when canal water is in view and the camera is low enough (fades 170-235 m)
   let mir = MIRROR ? 1 - sstep(170, 235, cy) : 0;
