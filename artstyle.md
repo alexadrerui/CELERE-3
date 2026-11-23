@@ -15,7 +15,7 @@ The city has been transformed from Atlantis into **Luxor, the lost city**: the s
 | Glass domes in the civic ring | **Temples**: battered twin-towered pylons with cavetto cornices, flagpoles, a pair of obelisks before the gate, a court of papyrus columns, a sanctuary block |
 | Crystal pylons on the plaza | **Sphinxes** around the plaza; the spokes are **avenues of sphinxes** facing across the way |
 | Cupolas on roofs | Roof **kiosks** of four papyrus columns under a cornice |
-| Indigo light-liquid | **Lapis lazuli** liquid: deep blue body with drifting **gold** filaments (falls on the podium tiers, the moat, the pool) |
+| Indigo light-liquid, and the energy pulse | **Clear water** in the moat and the podium's pools, falling white over the tiers; **no** energy pulse and no light of its own at the centre (nothing magical glows) |
 | Canals: turquoise Mediterranean | Canals: deep clear **Nile green**, over silty stone floors |
 | Cypress, olive, plane, pine | **Date palms** first (pinnate fronds, slender trunks), then tamarisk, sycamore fig, umbrella acacia; flowers sparse (oleander, bougainvillea), thickest by water |
 | Mountains behind | The Theban cliffs, and **three pyramids** with a great sphinx on the plateau north-west of the city |

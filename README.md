@@ -19,7 +19,7 @@ Nothing to install, and it works offline. It needs a browser with **WebGPU**. If
 ## What's there
 
 - **The great obelisk**, carved with hieroglyphs in sunk relief and capped with electrum, inside a lotus of weathered sandstone
-- **A stepped podium** with falls of lapis-blue liquid threaded with gold pouring down every tier, ringed by sphinxes
+- **A stepped podium** with clear water falling white down every tier into its pools, ringed by sphinxes
 - **Canals of deep Nile green** that mirror the city, and wind-blown sand lying on the steps and paving of a city half reclaimed by the desert
 - **Temples** with battered pylons, flagpoles and obelisks at their gates, and the six spokes laid out as **avenues of sphinxes** under date palms
 - **The Nile**, a broad river with feluccas under sail, a far bank of sand, fields and palm groves along the water
@@ -91,7 +91,7 @@ The prompt also tells Claude how to check its own work: a separate subagent that
 
 Luxor is a transformation of [Atlantis](https://github.com/Noniv/atlantis) by Maksymilian Dendura (MIT), keeping its engine and following the same rules in [`prompt.txt`](prompt.txt): everything procedural in one HTML file, the same performance budget, and the same verification loop (an independent visual critic over the six review shots and the fly-through, plus GPU timing). Section 0 of [`artstyle.md`](artstyle.md) maps every Atlantis element onto its Luxor counterpart; the concept art still shows Atlantis and serves only as the bar for rendering quality.
 
-Known limitations from the last review: some broadleaf hedges and shrubs still read as stippled leaf cards, the electrum caps of the obelisks look dark from the review viewpoints, and the lapis pool on the podium reads as a flat surface.
+Known limitations from the last review: some broadleaf hedges and shrubs still read as stippled leaf cards, and the electrum caps of the obelisks look dark from the review viewpoints.
 
 ## Make it your own
 
@@ -119,7 +119,7 @@ This writes a new `index.html` next to this README. `npm run build:readable` wri
 | [`source/src/sh_base.js`](source/src/sh_base.js) | Shared shader code, baked textures, the sky and the waves |
 | [`source/src/sh_scene.js`](source/src/sh_scene.js) | Culling and levels of detail on the GPU, the opaque materials and shadows |
 | [`source/src/sh_light.js`](source/src/sh_light.js) | Ambient occlusion, light shafts, lighting, anti-aliasing and tone mapping |
-| [`source/src/sh_fx.js`](source/src/sh_fx.js) | Water, the lapis liquid, crystal, glass and reflections on polished stone |
+| [`source/src/sh_fx.js`](source/src/sh_fx.js) | Water (the Nile, the canals, the podium's pools and falls), crystal, glass and reflections on polished stone |
 | [`source/src/collide.js`](source/src/collide.js) | What the camera can't fly into |
 | [`source/src/main.js`](source/src/main.js) | The renderer, the camera and the controls |
 | [`source/src/music.js`](source/src/music.js) | The music: tempo, key, scale and volume are at the top |
