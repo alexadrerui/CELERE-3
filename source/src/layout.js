@@ -59,6 +59,13 @@ const pyrBase = (P) => P[4] ?? (P[4] = landRaw(P[0], P[1]) + 1);
 const FAR_BANK = (x) => 1850 + 220 * sin(x / 950 + 1) + 100 * sin(x / 380 + 2.2);
 // and its near (northern) bank beyond the city's shore, east and west: z of the waterline at x
 const NEAR_BANK = (x) => 380 + 160 * sin(x / 820 + 2) + 70 * sin(x / 310 + 0.6);
+// the pyramid complex across the Nile (after KitBash3D BldgLgPyramid_A, scaled ~2.4x), on the city's axis x = 0 and
+// facing it: a quay at the waterline, a colonnaded avenue, a freestanding gate (after the Euergetes gate at Karnak), a
+// pylon temple, an enclosure wall with corner obelisks and the pyramid. z of each part (+z is away from the city).
+const FARPYR = (() => {
+  const zb = FAR_BANK(0), y = 5;
+  return { zb, y, quay: zb - 14, aveA: zb + 24, aveB: zb + 260, gate: zb + 268, temple: zb + 352, wallN: zb + 400, pyr: zb + 525, wallS: zb + 650, wallX: 125, B: 108, H: 100 };
+})();
 // terrain beyond the outer canal
 // coast about 900 m out, with capes and coves; the harbour is a bay cut into the south side
 const HARB_R = 452, WQ = [-852, 146]; // land's end at the harbour; centre of the west quay's bastion
@@ -161,6 +168,8 @@ const terrainH = (x, z) => {
   // the far bank, across the Nile to the south: a low sandy shore rising into dunes
   const fb = z - FAR_BANK(x);
   if (fb > -120) h = max(h, mix(-9, 3 + 0.004 * max(fb, 0), sstep(-120, 140, fb)) + dunes(x + 517, z - 233) * sstep(160, 700, fb));
+  // the far-bank pyramid complex stands on a levelled terrace
+  { const F = FARPYR, w = sstep(F.wallX + 140, F.wallX + 100, abs(x)) * sstep(F.zb - 6, F.zb + 10, z) * sstep(F.wallS + 60, F.wallS + 20, z); if (w > 0) h = mix(h, F.y - 0.3, w); }
   // the near (northern) bank, running on east and west of the city's shore, so the water reads as a river
   const nb = NEAR_BANK(x) - z, nw = sstep(700, 1250, abs(x)) * sstep(70, 0, d);
   if (nw > 0 && nb > -120) h = max(h, mix(-60, mix(-9, 3 + 0.004 * max(nb, 0), sstep(-120, 140, nb)) + dunes(x - 311, z + 97) * sstep(180, 700, nb), nw));

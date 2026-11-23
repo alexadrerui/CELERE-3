@@ -1,2 +1,4 @@
 node_modules/
 dev.html
+# renders and measurements of the licensed KitBash3D kit: local reference only, never published
+reference/

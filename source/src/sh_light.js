@@ -255,7 +255,10 @@ fn shafts(fc: vec2f, z: f32, rd: vec3f) -> vec3f {
   let aoA = ao * sv; let aa = 2.04 * dc - .33; let bb = -4.8 * dc + .64; let cc = 2.75 * dc + .69;
   let aoc = max(vec3f(aoA), ((aoA * aa + bb) * aoA + cc) * aoA);
   let nv = max(dot(N, V), 1e-3);
-  col += dc * textureSampleLevel(tIrr, sLin, N, 0.).rgb * aoc;
+  // out of the sun the open sky is what lights a surface: its share turns the shade cool blue (the warm bounce off the
+  // sand stays in the sunlit part)
+  let shadeTint = mix(vec3f(1.), vec3f(.84, .96, 1.2), (1. - sh) * sat(N.y * .4 + .7) * .55);
+  col += dc * textureSampleLevel(tIrr, sLin, N, 0.).rgb * aoc * shadeTint;
   let R = reflect(rd, N); var so = sat(pow(nv + aoA, exp2(-16. * rough - 1.)) - 1. + aoA) * mix(sv, 1., .3);
   var env = textureSampleLevel(tEnv, sLin, R, rough * 5.).rgb;
   // a recessed pane still mirrors what's in front: the reveal dims it only a little

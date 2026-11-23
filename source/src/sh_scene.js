@@ -170,9 +170,13 @@ fn glyphs(p: vec3f, N: vec3f, fw: f32) -> f32 {
   let fade = sat(1. - fw / .05); if (fade <= 0.) { return 0.; }
   let cw = .5; let ch = .4; let col = floor(u / cw); let fu = fract(u / cw) * cw;
   let rule = 1. - ss(0., fw + .012, abs(fu - .02)); // ruled line between columns
+  // registers: a deep cut band every 5 rows and a frame every 4 columns, so the signs read as framed panels
+  let rb = fract(v / (ch * 5.)) * ch * 5.; let pb = fract(u / (cw * 4.)) * cw * 4.;
+  let frame = max(1. - ss(0., fw + .03, abs(rb - .04)), (1. - ss(0., fw + .025, abs(pb - .035))) * .85) * fade;
+  if (rb < .1 || pb < .08) { return frame; }
   let row = floor(v / ch); let f = vec2f((fu - .26) / .36, (fract(v / ch) - .5) * ch / .36);
   let h = h22(vec2f(col, row) + 11.); let k = u32(h.x * 13.);
-  if (h.y < .12) { return rule * .5 * fade; } // a gap between words
+  if (h.y < .12) { return max(rule * .5 * fade, frame); } // a gap between words
   var d = 1.;
   if (k == 0u) { d = abs(length(f) - .3) - .07; } // sun disc
   else if (k == 1u) { d = max(abs(f.x) - .42, abs(f.y) - .08); } // flat bar
@@ -187,7 +191,7 @@ fn glyphs(p: vec3f, N: vec3f, fw: f32) -> f32 {
   else if (k == 10u) { let z = f.x - .12 * sin(f.y * 9.); d = max(abs(z) - .05, abs(f.y) - .4); d = min(d, length(f - vec2f(.1, .38)) - .08); } // cobra
   else if (k == 11u) { d = abs(length(f * vec2f(2.2, 1.)) - .38) - .05; } // feather
   else { d = min(max(abs(f.x) - .4, abs(f.y + .3) - .06), min(max(abs(f.x + .2) - .05, abs(f.y) - .3), max(abs(f.x - .2) - .05, abs(f.y) - .3))); } // shrine
-  return max(1. - ss(-fw * 1.5 - .003, fw * 1.5 + .003, d * .36), rule * .5) * fade;
+  return max(max(1. - ss(-fw * 1.5 - .003, fw * 1.5 + .003, d * .36), rule * .5) * fade, frame);
 }
 var<private> gVein: f32; // how veined the last marble() sample was
 fn marble(p: vec3f, dx: vec3f, dy: vec3f, w: vec3f, off: vec3f) -> vec4f { // rgb colour factor, a grain
@@ -287,7 +291,10 @@ fn terrain(p: vec3f, dx: vec3f, dy: vec3f, fw: f32, n: vec3f, tv: vec3f) -> Mt {
   let field = ss(.35, .6, mp.a + (A.r - .5) * .25) * (1. - ss(.1, .2, steep));
   // the desert: everywhere the Nile's flood plain and the river don't reach (tLand alpha off the fields, world.js).
   // Pale wind-rippled sand, paler on the crests, warmer and redder in the hollows, with grey-brown gravel flats
-  let lush = ss(.35, .65, max(max(crop.a, ss(.02, .2, mp.a)), ss(.05, .5, wet)) + (L.r - .5) * .45 + (A.r - .5) * .2);
+  // the Nile's far bank keeps a strip of flood plain (green) between the water and the dunes, the complex's terrace apart
+  let fbz = p.z - (1850. +220. * sin(p.x / 950. + 1.) + 100. * sin(p.x / 380. + 2.2));
+  let farLush = ss(-6., 6., fbz) * ss(190., 100., fbz + (L.r - .5) * 60.) * (1. - ss(165., 140., abs(p.x)) * ss(4., 12., fbz));
+  let lush = ss(.35, .65, max(max(max(crop.a, ss(.02, .2, mp.a)), ss(.05, .5, wet)), farLush) + (L.r - .5) * .45 + (A.r - .5) * .2);
   var sand = mix(vec3f(.64, .49, .32), vec3f(.74, .6, .42), sat(.5 - hollow * .7 + (L.g - .5) * .6)); // (per-vertex hollows only lightly: strongly they draw the mesh grid)
   sand = mix(sand, vec3f(.56, .37, .22), ss(.45, .8, R.r + (L.r - .5) * .5) * .45);
   sand = mix(sand, vec3f(.46, .37, .27) * (.8 + .4 * B.r), ss(.62, .8, L.r * .55 + M.r * .3 + R.g * .3) * ss(.3, -.3, hollow) * .35); // gravel flats
@@ -392,15 +399,29 @@ const FLOWERS = array<vec3f, 8>(vec3f(.52, .08, .24), vec3f(.8, .36, .5), vec3f(
     }
     if (mat == 0u && i.uv.y > .3 && i.uv.y < .5) {
       // pyramid casing: 1.1 m courses of blocks, each its own tone, the course's foot in shade, worn edges
-      let cy = p.y / 1.1; let u = dot(p.xz, normalize(vec2f(-N.z, N.x) + vec2f(1e-5, 0.))) / 1.7 + h11(floor(cy)) * 5.;
-      let bl = h21(vec2f(floor(cy), floor(u))); let ed = min(min(fract(cy), 1. - fract(cy)) * 1.1, min(fract(u), 1. - fract(u)) * 1.7);
-      o.alb *= (.86 + .24 * bl) * (1. - .45 * line(fract(cy) * 1.1, .07, fw) - .2 * line(ed, .025, fw));
+      // (ea > .5: white Tura limestone in great 4.4 x 8.8 m blocks, ~22 courses, as on the kit's BldgLgPyramid_A)
+      let lime = i.uv.x > .5; let chh = select(1.1, 4.4, lime); let clw = select(1.7, 8.8, lime);
+      if (lime) { o.alb = vec3f(.84, .8, .71) * m.rgb; }
+      let cy = p.y / chh; let u = dot(p.xz, normalize(vec2f(-N.z, N.x) + vec2f(1e-5, 0.))) / clw + h11(floor(cy)) * 5.;
+      let bl = h21(vec2f(floor(cy), floor(u))); let ed = min(min(fract(cy), 1. - fract(cy)) * chh, min(fract(u), 1. - fract(u)) * clw);
+      o.alb *= (select(.86, .92, lime) + select(.24, .12, lime) * bl) * (1. - .45 * line(fract(cy) * chh, .07, fw) - select(.2, .35, lime) * line(ed, select(.025, .06, lime), fw));
+      if (lime) { o.alb = mix(o.alb, o.alb * vec3f(.92, .8, .72), line(ed, .06, fw)); } // fine reddish joints
       o.rough = .8; o.nb += vec3f(0., -.35 * sat(1. - fract(cy) * 4.) * sat(1. - fw / .5), 0.);
     }
-    if (mat != 9u && !(i.uv.y > .3 && i.uv.y < .5)) {
+    // (no courses on monoliths: glyph-carved stone with a glyph scale (ea), i.e. obelisks and the gate's piers)
+    if (mat != 9u && !(i.uv.y > .3 && i.uv.y < .5) && !(i.uv.y > .5 && i.uv.x > .02)) {
       let wall = 1. - abs(N.y); let cy = p.y / .62; let j = line(min(fract(cy), 1. - fract(cy)) * .62, .004, fw) * wall;
       let ax = select(p.x, p.z, w.x > w.z) / 1.3 + h11(floor(cy)) * 7.; let vj = line(min(fract(ax), 1. - fract(ax)) * 1.3, .004, fw) * wall * ss(.6, .9, max(w.x, w.z));
-      o.alb *= (1. - select(.32, .14, i.uv.y > .5) * max(j, vj)) * (.975 + .05 * h21(vec2f(floor(cy), floor(ax))));
+      // each block its own tone (quarried from different beds), and streaks of iron and water stain running down
+      // from the top of walls, broken by the courses; both broad enough to read from afar
+      let bt = h21(vec2f(floor(cy), floor(ax)));
+      let sq = vec3f(1., .07, 1.); let st = tri(tNoiseA, p * sq, dx * sq, dy * sq, w, .35);
+      let streak = ss(.55, .8, st.r + (st.a - .5) * .3) * wall * (.6 + .4 * ss(.3, .7, h11(floor(ax) + 3.)));
+      o.alb *= (1. - select(.32, .2, i.uv.y > .5) * max(j, vj)) * (.9 + .2 * bt) * (1. - .16 * streak);
+      o.alb = mix(o.alb, o.alb * vec3f(1.05, .9, .76), .35 * ss(.62, .9, h21(vec2f(floor(cy * .5), floor(ax * .4)) + 7.))); // iron-rich blocks
+      o.rough = mix(o.rough, .85, streak * .5);
+      // the far complex: dust and drift-sand stain rising from the foot of its walls
+      if (p.z > ${(FARPYR.zb - 60).toFixed(1)}) { let ft = ss(${(FARPYR.y + 3).toFixed(1)}, ${(FARPYR.y).toFixed(1)}, p.y + (st.a - .5) * 1.2) * wall; o.alb = mix(o.alb, vec3f(.58, .45, .31), ft * .55); o.rough = mix(o.rough, .9, ft); }
     }
     if (mat == 4u) {
       let d = p.y - select(${WATER}, 0., i.uv.x > .5); let B = tri(tNoiseA, p, dx, dy, w, .8);
@@ -412,6 +433,16 @@ const FLOWERS = array<vec3f, 8>(vec3f(.52, .08, .24), vec3f(.8, .36, .5), vec3f(
     }
   } else if (mat == 1u || mat == 14u) {
     o = pave(p, dx, dy, fw, N);
+    if (p.z > ${(FARPYR.gate + 4).toFixed(1)}) {
+      // the far complex's forecourt (past the gate): dusty, no sheen to sparkle, drift sand lying in broad tongues
+      // across the flags and banked along the joints
+      o.rough = max(o.rough, .85); o.inlay = 0.;
+      let D = tri(tNoiseA, p, dx, dy, w, .03); let D2 = tri(tNoiseA, p, dx, dy, w, .4);
+      let bank = ss(${(FARPYR.wallN - 14).toFixed(1)}, ${(FARPYR.wallN - 1).toFixed(1)}, p.z) * .45; // banked against the foot of the wall
+      let drift = ss(.5, .72, D.r + (D2.a - .5) * .3 + bank);
+      o.alb = mix(o.alb * vec3f(.8, .78, .76), vec3f(.92, .74, .5) * (.9 + .2 * D2.r), drift * .92); // the bare flags greyer, the sand light and warm o.rough = mix(o.rough, .95, drift);
+      o.nb += triN(p, dx, dy, w, 1.2, false) * .25 * drift; // rippled
+    }
     if (mat == 14u) {
       o.inlay = 0.;
       // a flight drawn as a ramp (uv.y): a faint line per step, fading below a pixel
@@ -423,7 +454,28 @@ const FLOWERS = array<vec3f, 8>(vec3f(.52, .08, .24), vec3f(.8, .36, .5), vec3f(
   else if (mat == 2u) {
     let A = tri(tNoiseA, p, dx, dy, w, .33); let B = tri(tNoiseA, p, dx, dy, w, 3.1);
     o.alb = mix(vec3f(.8, .68, .52), i.tint.rgb, .55) * (1. - .08 * (A.r - .5) - .05 * (B.a - .5)); o.rough = .78; o.nb = triN(p, dx, dy, w, 3.3, false) * .2;
-  } else if (mat == 3u) { o.alb = vec3f(1., .82, .48); o.metal = .5; o.rough = .24; // electrum, part burnished, part matte: it also takes the sun diffusely, never reads dark
+    // painted stone (eb = PAINT): a pigment picked by ea (red ochre, Egyptian blue, yellow ochre, white, black, green),
+    // sun-faded and flaking where the noise wears through to the stone
+    if (i.uv.y > .7 && i.uv.y < .9) {
+      let k = u32(i.uv.x * 5. + .5); let mono = i.uv.x * 5. - f32(k) > .25; let pg = array<vec3f, 6>(vec3f(.42, .12, .07), vec3f(.1, .24, .34), vec3f(.62, .45, .17), vec3f(.78, .74, .64), vec3f(.07, .06, .05), vec3f(.16, .28, .17));
+      // pigments sun-faded toward the stone, flaking where the noise wears through
+      let pgm = mix(pg[min(k, 5u)], vec3f(.7, .6, .46), select(.22, 0., k == 3u || k == 4u));
+      o.alb = mix(pgm * (.85 + .3 * A.r), vec3f(.72, .6, .44), ss(.62, .8, B.r + (A.a - .5) * .4) * select(.7, .35, k == 3u)); o.rough = .85;
+      // the white is limestone ashlar under limewash: 0.9 m courses of 1.8 m blocks, each its own tone, the joints
+      // showing, iron / water streaks down from the top, dust and drift-sand stain rising from the foot of walls
+      let wl = 1. - abs(N.y); let cy = p.y / .9; let ax = select(p.x, p.z, w.x > w.z) / 1.8 + h11(floor(cy)) * 7.;
+      let jn = max(line(min(fract(cy), 1. - fract(cy)) * .9, .01, fw), line(min(fract(ax), 1. - fract(ax)) * 1.8, .01, fw) * ss(.6, .9, max(w.x, w.z))) * wl;
+      let bt = select(h21(vec2f(floor(cy), floor(ax))), .5, mono); // (mono: a monolith, no courses)
+      let sq = vec3f(1., .07, 1.); let st = tri(tNoiseA, p * sq, dx * sq, dy * sq, w, .35);
+      let streak = ss(.55, .8, st.r + (st.a - .5) * .3) * wl;
+      o.alb *= (.88 + .2 * bt) * (1. - select(select(.12, .3, k == 3u), 0., mono) * jn) * (1. - .14 * streak);
+      let foot = ss(${FARPYR.y + 3.5}, ${FARPYR.y}, p.y + (A.r - .5) * 1.2) * wl;
+      o.alb = mix(o.alb, vec3f(.6, .47, .32) * (.85 + .3 * B.a), foot * .6); o.rough = mix(o.rough, .9, max(foot, streak * .5));
+    }
+  } else if (mat == 3u) {
+    // electrum: veined and unevenly burnished, so it reads as metal (tone and sheen vary) without hard glints
+    let G = tri(tNoiseA, p, dx, dy, w, .6); let G2 = tri(tNoiseA, p, dx, dy, w, 3.);
+    o.alb = vec3f(.9, .62, .17) * (.9 + .25 * G.r) * mix(vec3f(1.), vec3f(.8, .6, .42), ss(.6, .85, G2.a) * .4); o.metal = .3; o.rough = .24 + .3 * G2.r; // gilding: a saturated warm base (~#C9962E), little sky in it (sky x gold reads olive) // warmer, more diffuse: gold from afar, no glints // electrum, part burnished, part matte: it also takes the sun diffusely, never reads dark
  o.inlay = .14; } // electrum: pale gold; // gold answers the pulse a little
   else if (mat == 5u) {
     let g = p.xz / 1.5; let f = min(fract(g), 1. - fract(g)) * 1.5; let A = tri(tNoiseA, p, dx, dy, w, .31); let B = tri(tNoiseA, p, dx, dy, w, 1.7);
@@ -498,8 +550,10 @@ const FLOWERS = array<vec3f, 8>(vec3f(.52, .08, .24), vec3f(.8, .36, .5), vec3f(
   // the lost city: wind-blown sand lying on ledges, treads and paving, and banked against the feet of walls
   if (mat == 0u || mat == 1u || mat == 2u || mat == 9u || mat == 12u || mat == 14u) {
     let S = tri(tNoiseA, p, dx, dy, w, .085); let S2 = tri(tNoiseA, p, dx, dy, w, .6);
-    let lie = ss(.6, .92, N.y) * ss(.36, .56, S.r + (S2.a - .5) * .35 + (S2.r - .5) * .2);
-    let bank = ss(1.4 + .8 * S.g, 0., p.y - ${LAND} + (S2.r - .5) * .6) * ss(9.6, 9.9, p.y) * (1. - ss(.6, .9, N.y));
+    let lie = ss(.6, .92, N.y) * ss(select(.36, .24, p.z > ${FARPYR.zb - 60}), .56, S.r + (S2.a - .5) * .35 + (S2.r - .5) * .2);
+    // (ground level: the city's land, or the far-bank complex's terrace)
+    let gy = select(${LAND}., ${FARPYR.y}., p.z > ${FARPYR.zb - 60});
+    let bank = ss(1.4 + .8 * S.g, 0., p.y - gy + (S2.r - .5) * .6) * ss(gy - .4, gy - .1, p.y) * (1. - ss(.6, .9, N.y));
     let dr = sat(max(lie, bank * ss(.3, .55, S.r + .15))) * (1. - o.inlay); // the swept inlay stays clear
     o.alb = mix(o.alb, mix(vec3f(.67, .52, .35), vec3f(.74, .6, .42), S2.r) * (.9 + .2 * S2.a), dr);
     o.rough = mix(o.rough, .93, dr); o.inlay *= 1. - dr; o.metal *= 1. - dr; o.nb = mix(o.nb, o.nb * .2, dr);

@@ -431,6 +431,39 @@ function populate({ type, put, paint, MAP, balRun, gH, hard }) {
 
   // the pyramids, and a great sphinx below them watching the city
   for (const P of PYRAMIDS) { put(type([meshPyramid(P[2], P[3])], K.SOLID), P[0], pyrBase(P) - 0.5, P[1]); occ.push([P[0], P[1], P[2] * 1.5]); }
+  // the pyramid complex across the Nile, facing the city (layout: FARPYR)
+  {
+    const F = FARPYR, north = qYaw(PI / 2); // meshTemple faces local +x; turned to face -z, the city
+    put(type([meshFarQuay(F)], K.SOLID), 0, 0, 0);
+    const bay = 9, tBay = type([meshColonnadeBay(bay, 0), meshColonnadeBay(bay, 1), meshColonnadeBay(bay, 2)], K.SOLID, 260, 900, 1e9);
+    for (let z = F.aveA + 8; z + bay / 2 <= F.aveB; z += bay) for (const sd of [-1, 1]) put(tBay, sd * 16, F.y + 0.1, z);
+    put(type([meshGate(16, 6, 26, 0), meshGate(16, 6, 26, 1)], K.SOLID, 400, 1e9, 1e9), 0, F.y + 0.1, F.gate);
+    // the kit's own buildings (BldgLgPyramid_A, ~2.4x): the entrance in the gap of the front wall, the terrace building
+    // on the east side where the wall jogs out round it, banners along the inner face, torches and pots by the terrace
+    put(type([meshKitEntrance(0), meshKitEntrance(1)], K.SOLID, 500, 1e9, 1e9), 0, F.y, F.wallN);
+    const tx = F.wallX + 30, tz = F.pyr - 30;
+    put(type([meshKitTerrace(0), meshKitTerrace(1)], K.SOLID, 500, 1e9, 1e9), tx, F.y, tz);
+    const jog = [tz - 55 - F.pyr, tz + 55 - F.pyr];
+    put(type([meshEnclosure(F.wallX, (F.wallS - F.wallN) / 2, 13.5, 8, 0, jog), meshEnclosure(F.wallX, (F.wallS - F.wallN) / 2, 13.5, 8, 1, jog)], K.SOLID, 600, 1e9, 1e9), 0, F.y, F.pyr);
+    const tBan = type([meshKitBanner()], K.SOLID, 600, 1e9, 1e9);
+    for (const x of [-100, -70, -40, 40, 70]) put(tBan, x, F.y, F.wallN + 6, 1, north);
+    for (const z of [tz - 70, tz + 70]) put(tBan, tx + 60, F.y, z, 1, qYaw(0));
+    const tTorch = type([meshKitTorch()], K.SOLID, 300, 1e9, 1e9);
+    for (const sd of [-1, 1]) for (const o of [-4.5, 4.5]) put(tTorch, tx + 45 + 9.5, F.y, tz + sd * 40 + o);
+    for (const o of [-6, 6]) put(tTorch, o * 1.9, F.y, F.wallN - 11);
+    const tPots = type([meshKitPots()], K.SOLID, 250, 1e9, 1e9);
+    for (const [u, v, a] of [[30, -30, 0.4], [34, 22, 2.1], [-4, -45, 1.2]]) put(tPots, tx + u, F.y + 12.5, tz + v, 1, qYaw(a));
+    put(tPots, tx + 58, F.y, tz - 49, 1, qYaw(2.6));
+    put(type([meshPyramidCased(F.B, F.H)], K.SOLID), 0, F.y, F.pyr);
+    const tOb = type([meshKitObelisk(2.4)], K.SOLID, 1e9, 1e9, 1e9);
+    for (const sx of [-1, 1]) for (const z of [F.wallN - 8.5, F.wallS + 8.5]) put(tOb, sx * (F.wallX + 8.5), F.y, z); // plinths against the wall corners
+    for (const x of [-34, -26, 27, 36]) put(tCraftIdle, x, 0.02, F.quay - 4.5, 1, qYaw(PI / 2 + rr(-0.08, 0.08)), rgb(1, 1, 1, rng())); // moored at the quay
+    // palms along the bank either side of the quay and in rows behind the colonnades
+    for (const sd of [-1, 1]) {
+      for (let i = 0; i < 26; i++) { const x = sd * rr(55, 200), z = F.zb + rr(6, 60); if (gH(x, z) > 1) tree('cypress', x, gH(x, z), z, rr(0.9, 1.2), undefined, 0.6); }
+      for (let z = F.aveA + 12; z < F.aveB; z += 11) tree('cypress', sd * rr(27, 31), F.y, z + rr(-2, 2), rr(0.95, 1.15), undefined, 0.6);
+    }
+  }
   // the great sphinx: ~75 m long and ~25 m high (squashed upright), its plinth sunk into a bedrock enclosure
   { const [x, z] = SPHINX; put(tSph, x, gH(x, z) - 1.5 * 11 * 0.55 + 0.5, z, 11, qYaw(atan2(z, -x)), 0xffffffff, 0.55); occ.push([x, z, SPHINX[2] + 5]); } // on the hollow's floor, its plinth sunk flush
   // feluccas on the Nile (open water, clear of the shore) and a few in the canals, all on the same tack
