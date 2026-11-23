@@ -22,7 +22,7 @@ The city has been transformed from Atlantis into **Luxor, the lost city**: the s
 | Sky and haze | The same low WNW sun, with **dustier, warmer desert haze** |
 | "Inhabited, humid, abundant" | **Lost**: an oasis city half reclaimed by sand; lush only where water reaches; carved **hieroglyphs** (sunk relief in columns) on obelisks, pylons, walls and columns |
 
-The concept art in `concept-art/` shows Atlantis: use it only as the bar for rendering quality, lighting and composition, not for subject or palette. The yes/no tests of section 14 apply with the mapping above (e.g. test 5: rings and spokes around the obelisk; test 7: the obelisk and pyramids read as real dressed stone with metal caps; test 8: water present everywhere, including the lapis liquid; test 4: vegetation botanical, palms readable, lush only by water). Classical orders still do not belong; Egyptian forms (battered walls, cavetto cornices, papyrus columns, obelisks, pyramids, sphinxes) do.
+The concept art in `concept-art/` shows Atlantis: use it only as the bar for rendering quality, lighting and composition, not for subject or palette. The yes/no tests of section 14 apply with the mapping above (e.g. test 5: rings and spokes around the obelisk; test 7: the obelisk and pyramids read as real dressed stone with metal caps; test 8: water present everywhere, clear in the podium's pools and falls; test 4: vegetation botanical, palms readable, lush only by water). Classical orders still do not belong; Egyptian forms (battered walls, cavetto cornices, papyrus columns, obelisks, pyramids, sphinxes) do.
 
 ---
 

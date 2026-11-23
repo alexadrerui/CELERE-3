@@ -29,7 +29,7 @@ Nothing to install, and it works offline. It needs a browser with **WebGPU**. If
 | | |
 |---|---|
 | ![A canal of Nile green below the temples](.github/screenshots/canal.jpg) | ![The pyramids and the great sphinx under the Theban cliffs](.github/screenshots/pyramids.jpg) |
-| ![The sandstone lotus and the lapis falls](.github/screenshots/lotus.jpg) | ![Sunset over the Nile and its far bank](.github/screenshots/nile.jpg) |
+| ![The sandstone lotus over the podium's falls and pool](.github/screenshots/lotus.jpg) | ![Sunset over the Nile and its far bank](.github/screenshots/nile.jpg) |
 
 ![The whole city from the air: rings, harbour, the Nile, the desert and the pyramids](.github/screenshots/aerial.jpg)
 
