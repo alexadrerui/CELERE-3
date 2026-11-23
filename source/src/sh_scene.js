@@ -430,8 +430,9 @@ const FLOWERS = array<vec3f, 8>(vec3f(.52, .08, .24), vec3f(.8, .36, .5), vec3f(
     // canal floor slabs barely differ, or their grid shows through the water
     o.alb = mix(vec3f(.44, .4, .3), vec3f(.52, .46, .33), A.r) * (.82 + .3 * B.a) * (1. - .16 * line(min(f.x, f.y), .015, fw)) * (.98 + .04 * h21(floor(g))); o.rough = .6; o.nb = triN(p, dx, dy, w, 1.1, true) * .35;
   } else if (mat == 6u) {
-    // window glass: the dim warm room behind; the lighting pass adds the Fresnel reflection (last G-buffer channel = glass)
-    glass = 1.; o.rough = .05; o.alb = vec3f(.05, .046, .042);
+    // an opening with no glass (glass was a luxury in Egypt): the dim room seen through it, a reed mat let down over
+    // some; doors (even uv.z) are planked wood, a few left ajar. Matte: nothing here reflects the sky
+    glass = 0.; o.rough = .9; o.alb = vec3f(.05, .046, .042);
     if (i.uv.z > .002) {
       // a wall window's pane has its own uv (0-1) and random (uv.z); the room is a box behind it, ray-traced in the
       // pane's frame, so it shifts with the camera
@@ -452,13 +453,25 @@ const FLOWERS = array<vec3f, 8>(vec3f(.52, .08, .24), vec3f(.8, .36, .5), vec3f(
         let pq = abs(q - vec2f(.25 + .5 * fract(r * 9.1), .62)); if (r > .6 && pq.x < .17 && pq.y < .13) { room = vec3f(.2, .16, .1) * (.6 + .8 * fract(r * 31.)); }
       }
       o.alb = room * (1. - .45 * t);
-      // some windows have a half-drawn curtain (folds fade before aliasing)
-      let fu = max(abs(uvx.x), abs(uvy.x));
-      if (r > .42) {
-        let cu = select(u.x, 1. - u.x, fract(r * 3.7) > .5); let cw = (.2 + .22 * fract(r * 13.3)) * (1. + .05 * sin(u.y * 7. + r * 20.) * u.y);
-        let fold = .5 + .5 * sin(cu / cw * 16. + r * 40.);
-        let cur = vec3f(.5, .46, .4) * mix(vec3f(1.), vec3f(.85, .92, 1.05), fract(r * 23.)) * mix(.8, .62 + .36 * fold, sat(1. - fu / (cw * .12)));
-        o.alb = mix(o.alb, cur, 1. - ss(cw - fu, cw + fu, cu));
+      // reed mats hung inside some openings, let down to different depths: upright stems, cords across, a rolled lower
+      // edge (stems and cords fade before they alias)
+      let fu = max(abs(uvx.x), abs(uvy.x)); let fv = max(abs(uvx.y), abs(uvy.y));
+      let ec = u32(i.uv.z * 255. + .5); let door = (ec & 1u) == 0u;
+      if (!door && r > .38) {
+        let mh = .3 + .65 * fract(r * 13.3); let top = 1. - mh; // the mat covers the opening above top
+        let st = .5 + .5 * cos(u.x * 2. * PI * 26.); let cord = 1. - ss(.0, .025 + fv, abs(fract((u.y - top) * 3.) - .5) - .45);
+        var reed = vec3f(.5, .4, .24) * (.82 + .3 * fract(r * 23.)) * mix(1., .78 + .3 * st, sat(1. - fu * 30.)) * (1. - .3 * cord * sat(1. - fv * 20.));
+        reed *= 1. - .35 * ss(.05, 0., u.y - top); // shade under the rolled edge
+        o.alb = mix(o.alb, reed, ss(top - fv, top + fv, u.y)); o.trans = .15;
+      }
+      if (door && r > .3) {
+        // planked door, cedar-brown and sun-bleached, with two battens; the rest stand open on the dark room
+        let pk = floor(u.x * 6.); let pf = fract(u.x * 6.); let ph = h21(vec2f(pk, r * 31.));
+        var wd = mix(vec3f(.26, .16, .085), vec3f(.44, .31, .17), ph * .7 + .3 * fract(r * 7.)) * (.9 + .2 * sin(u.y * 40. + ph * 9.) * sat(1. - fv * 25.));
+        wd *= 1. - .5 * (1. - ss(0., .04 + fu * 6., min(pf, 1. - pf))); // seams between planks
+        let bat = max(1. - ss(.04, .05 + fv, abs(u.y - .2)), 1. - ss(.04, .05 + fv, abs(u.y - .72)));
+        wd = mix(wd, wd * .8, bat);
+        o.alb = wd; o.rough = .8; o.nb = vec3f(0., -.15 * bat, 0.);
       }
     }
   } else if (mat == 7u) {

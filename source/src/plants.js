@@ -150,7 +150,7 @@ function meshFarm(seed, lod) {
   const mb = new MB(4096), rng = RNG(seed * 77 + 3), blank = { t: 0 };
   mb.mat = M.TERRACE; mb.lathe([[11, -2], [11, 0.1], [10.9, 0.16], [0, 0.16]], { seg: lod ? 10 : 18 });
   const house = rrect(-2.6, -1.2, 3.6 + rng() * 1.4, 2.6 + rng() * 0.8, 0.5);
-  volume(mb, house, 0.16, [3.3], 2.8, (fi, i, n) => (fi === 2 && i === (n >> 1) ? DOOR : h2(seed + fi, i) < 0.3 ? blank : { ...WIN, hs: 2.0, s: 0.9 }), { lod });
+  volume(mb, house, 0.16, [3.3], 2.8, (fi, i, n) => (fi === 2 && i === (n >> 1) ? DOOR : h2(seed + fi, i) < 0.3 ? blank : WIN), { lod });
   const barn = rrect(5.2, 1.4, 2.5 + rng() * 0.8, 3.3 + rng() * 1.1, 0.4);
   volume(mb, barn, 0.16, [4.4], 3.2, (fi, i, n) => (fi === 4 && i === (n >> 1) ? { t: 3, m: 0.5, s: 0.02, hs: 2.6, d: 0.4 } : blank), { lod });
   if (rng() < 0.7) { const gx = -5 + rng() * 2, gz = 5.6, top = volume(mb, [fRound(gx, gz, 2.1, 0, TAU)], 0.16, [4.6], 1.1, () => blank, { lod }); cupola(mb, gx, top, gz, 1.1, lod); }
@@ -246,7 +246,8 @@ function bay(mb, F, u0, w, y0, y1, o) {
     rect(u0, u0 + w, y0, y1, 0, [0, 0, 1], 1); if (!o.t) return;
     const a = u0 + o.m, b = u0 + w - o.m, ys = y0 + o.s, ra = (b - a) / 2, rv = ra * ARCH, yh = y0 + o.hs + ra - rv;
     if (o.t === 2) { mb.mat = M.CORE; rect(a, b, ys, yh + rv * 0.7, 0.04, [0, 0, 1], 0.5); mb.mat = wall; return; } // arcade opening: a dark panel
-    mb.mat = M.WINDOW; mb.ec = 1 + floor(h2(round(u0 * 9 + F.L * 31), round(y0 * 9 + w * 57)) * 254);
+    const rnd = floor(h2(round(u0 * 9 + F.L * 31), round(y0 * 9 + w * 57)) * 127);
+    mb.mat = M.WINDOW; mb.ec = o.t === 3 ? 2 + rnd * 2 : 1 + rnd * 2;
     const G = (u, v) => { mb.ea = round((u - a) / (b - a) * 255); mb.eb = round((v - ys) / (yh + rv - ys) * 255); return V(u, v, 0.04, 0, 0, 1, 0.8); };
     const p0 = G(a, yh), p1 = G(b, yh); mb.quad(G(a, ys), G(b, ys), p1, p0); mb.tri(p0, p1, G((a + b) / 2, yh + rv));
     mb.ea = mb.eb = mb.ec = 0; mb.mat = wall; return;
@@ -265,17 +266,18 @@ function bay(mb, F, u0, w, y0, y1, o) {
   if (o.s > 0) Q([[a, ys, 0], [b, ys, 0], [b, ys, -d], [a, ys, -d]], [0, 1, 0], ai);
   for (let i = 0; i < n; i++) { const p = arc[i], q = arc[i + 1]; mb.quad(V(p[0], p[1], 0, -p[2], -p[3], 0, ai + 0.2), V(q[0], q[1], 0, -q[2], -q[3], 0, ai + 0.2), V(q[0], q[1], -d, -q[2], -q[3], 0, ai), V(p[0], p[1], -d, -p[2], -p[3], 0, ai)); }
   if (o.t !== 2) {
-    // glass set back in a gold frame with mullion and transom. Each vertex carries its 0-1 place in the pane and the pane
-    // a per-pane random (the same at every LOD), from which the material builds a room behind the glass
-    mb.mat = M.WINDOW; mb.ec = 1 + floor(h2(round(u0 * 9 + F.L * 31), round(y0 * 9 + w * 57)) * 254);
+    // the opening's back plane, set deep in the wall. Each vertex carries its 0-1 place in it and a per-opening random
+    // (the same at every LOD), odd for windows and even for doors, from which the material builds the room, mat or door
+    const rnd = floor(h2(round(u0 * 9 + F.L * 31), round(y0 * 9 + w * 57)) * 127);
+    mb.mat = M.WINDOW; mb.ec = o.t === 3 ? 2 + rnd * 2 : 1 + rnd * 2;
     const G = (u, v, ao) => { mb.ea = round((u - a) / (b - a) * 255); mb.eb = round((v - ys) / (yh + rv - ys) * 255); return V(u, v, -d, 0, 0, 1, ao); };
     mb.quad(G(a, ys, 0.8 * foot(ys)), G(b, ys, 0.8 * foot(ys)), G(b, yh, 0.8), G(a, yh, 0.8));
     const c = G(uc, yh, 0.8); for (let i = 0; i < n; i++) mb.tri(c, G(arc[i][0], arc[i][1], 0.75), G(arc[i + 1][0], arc[i + 1][1], 0.75));
     mb.ea = mb.eb = mb.ec = 0;
-    if (!lod) {
-      mb.mat = M.GOLD; const fw = min(0.14, ra * 0.16), z = -d + 0.04, g = [0, 0, 1];
-      rect(a, a + fw, ys, yh, z, g, 0.9); rect(b - fw, b, ys, yh, z, g, 0.9); rect(a, b, ys, ys + fw, z, g, 0.9); rect(a, b, yh - 0.03, yh + 0.03, z, g, 0.9); rect(uc - 0.03, uc + 0.03, ys, yh + rv - fw, z, g, 0.9);
-      for (let i = 0; i < n; i++) { const p = arc[i], q = arc[i + 1], k = 1 - fw / ra; Q([[p[0], p[1], z], [q[0], q[1], z], [uc + (q[0] - uc) * k, yh + (q[1] - yh) * k, z], [uc + (p[0] - uc) * k, yh + (p[1] - yh) * k, z]], g, 0.9); }
+    // some windows keep a stone grille of upright slats, set halfway into the reveal
+    if (!lod && o.t === 1 && rnd % 3 === 0) {
+      mb.mat = M.TRIM; const z = -d * 0.5, sw = 0.05, k = 3;
+      for (let i = 1; i < k; i++) { const u = mix(a, b, i / k); for (const [zz, sg] of [[z + 0.04, 1], [z - 0.04, -1]]) rect(u - sw, u + sw, ys, yh + rv, zz, [0, 0, sg], 0.85); }
     }
   }
   if (!lod && o.t === 1) {
@@ -337,7 +339,8 @@ function cupola(mb, cx, y, cz, R, lod) {
   cornice(mb, cx, cz, R, R, y + 0.75 + h + R * 0.35, R * 0.35);
   mb.mat = m;
 }
-const WIN = { t: 1, m: 0.55, s: 0.95, hs: 2.0, d: 0.28 }, DOOR = { t: 3, m: 0.6, s: 0.02, hs: 2.25, d: 0.34 };
+// small, high openings set deep in thick walls (no glass); doorways a little narrower than before
+const WIN = { t: 1, m: 0.95, s: 1.55, hs: 2.3, d: 0.42 }, DOOR = { t: 3, m: 0.75, s: 0.02, hs: 2.1, d: 0.4 };
 // garden villa: one or two rounded volumes of 2-3 storeys, arched windows, roof terraces, maybe a cupola. Returns
 // the mesh and anchors [x, y, z, yaw, kind] (0 vine over a parapet, 1 roof shrub, 2 planter). Built twice: the first pass
 // finds the wing (`wr` = [cx, cz, hx, hz]) so the second leaves the walls blank where the volumes meet.
@@ -353,7 +356,7 @@ function meshVilla(seed, lod, wr) {
   // half a window opening plus a hand
   const GAP = 1.15, atWing = (fi, i, n) => { if (!wr) return false; const p = mid(main[fi], i, n); return abs(p[0] - wr[0]) < wr[2] + GAP && abs(p[2] - wr[1]) < wr[3] + GAP; };
   const inMain = (F, i, n) => { const p = mid(F, i, n); return circ ? hypot(p[0], p[2]) < R + GAP : abs(p[0]) < hx + GAP && abs(p[2]) < hz + GAP; };
-  const style = (fi, i, n, s) => (s === 0 && fi === 0 && i === (n >> 1) ? DOOR : (atWing(fi, i, n) || h2(seed * 7 + fi * 13 + s, i) < 0.16 ? { t: 0 } : s === 0 ? { ...WIN, hs: 2.3, s: 0.8 } : WIN));
+  const style = (fi, i, n, s) => (s === 0 && fi === 0 && i === (n >> 1) ? DOOR : (atWing(fi, i, n) || h2(seed * 7 + fi * 13 + s, i) < 0.16 ? { t: 0 } : s === 0 ? { ...WIN, hs: 2.45, s: 1.7 } : WIN));
   const top = volume(mb, main, 0.2, hs, circ ? 2.6 : 3.0, style, { lod });
   const perim = (frames, y) => { for (const F of frames) { const n = max(1, round(F.L / 2.7)); for (let i = 0; i < n; i++) { const u = (i + 0.5) * F.L / n, p = F.P(u, y, 0.16), nn = F.N(u, 0, 0, 1); anchors.push([p[0], y, p[2], atan2(nn[0], nn[2]), 0]); } } };
   perim(main, top + 0.95);
