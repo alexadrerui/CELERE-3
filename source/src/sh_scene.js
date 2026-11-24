@@ -572,7 +572,7 @@ const FLOWERS = array<vec3f, 8>(vec3f(.52, .08, .24), vec3f(.8, .36, .5), vec3f(
     let S = tri(tNoiseA, p, dx, dy, w, .085); let S2 = tri(tNoiseA, p, dx, dy, w, .6);
     let lie = ss(.6, .92, N.y) * ss(select(.36, .24, p.z > ${FARPYR.zb - 60}), .56, S.r + (S2.a - .5) * .35 + (S2.r - .5) * .2);
     // (ground level: the city's land, or the far-bank complex's terrace)
-    let gy = select(${LAND}., ${FARPYR.y}., p.z > ${FARPYR.zb - 60} && abs(p.x) < 46.); // (the far quay's level only along the promenade)
+    let gy = select(${LAND}., ${FARPYR.y}., p.z > ${FARPYR.zb - 60}); // (the far bank: the complex's terrace level, 5 m)
     let bank = ss(1.4 + .8 * S.g, 0., p.y - gy + (S2.r - .5) * .6) * ss(gy - .4, gy - .1, p.y) * (1. - ss(.6, .9, N.y));
     // (the polished granite of the far pyramid sheds the sand: its own dust is laid at its foot, above)
     let polished = mat == 0u && i.uv.y > .3 && i.uv.y < .5 && i.uv.x > .5;

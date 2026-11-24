@@ -7,7 +7,7 @@
 // The page runs the project's own model code (src/math.js, layout.js, meshes.js, read-only here) followed by
 // workbench.js. A function redefined in workbench.js replaces the project's one in the Kit Lab only; nothing in the
 // scene changes until the finished function is copied back into src/meshes.js.
-import { readFileSync, writeFileSync, existsSync, watch, createReadStream, statSync } from 'node:fs';
+import { readFileSync, writeFileSync, existsSync, watch, createReadStream, statSync, readdirSync } from 'node:fs';
 import http from 'node:http';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';

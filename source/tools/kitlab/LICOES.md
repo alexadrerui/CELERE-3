@@ -112,7 +112,38 @@ Leia antes de mexer em qualquer modelo do kit, e siga o checklist no fim antes d
 - Benchmark: rode `node build.mjs --dev` antes. Se o resultado oscilar, faça um A/B (versão publicada × nova) na
   mesma máquina antes de concluir qualquer coisa.
 
-## 9. Crítico no Kit Lab: no mínimo 2 rodadas
+## 9. Efeitos do shader presos a uma altura fixa: usar o chão do lugar
+
+**O que aconteceu:**
+- A areia acumulada no pé das paredes (`bank` em `sh_scene.js`) e a poeira no pé do granito usam uma altura de chão
+  (`gy`) como referência.
+- Ao corrigir o cais, deixei a altura do complexo (`FARPYR.y` = 5 m) valendo só numa faixa de |x| < 46 m. No resto
+  do complexo valia a altura do chão da cidade (`LAND` = 10 m).
+- Resultado: uma faixa de areia flutuando 5 m acima da base na pirâmide, nos muros e no terraço, e certa só num
+  trecho. Confundi com reflexo do granito; o usuário viu que não era.
+
+**Regra:**
+- Todo efeito que depende de "altura acima do chão" (areia no pé, poeira, manchas de umidade, linha d'água) usa o
+  chão **daquele lugar**: `FARPYR.y` em toda a margem do complexo (`p.z > FARPYR.zb - 60`), `LAND` na cidade. Nunca
+  restringir por uma faixa de x ou z menor que a área onde há construções.
+- Ao mudar o nível do terreno ou a área de um efeito, procurar **todos** os usos da mesma referência
+  (`grep -n "LAND\|FARPYR.y" src/sh_scene.js`) e conferir cada um.
+- Conferir de perto, na altura dos olhos, **em vários pontos do complexo** (frente, lados, baía do terraço, fundo),
+  não só no trecho onde a mudança foi feita. Um efeito certo num pedaço e errado no resto é sinal de limite de área.
+- Antes de explicar um defeito visual ("é reflexo", "é sombra"), confirmar a causa no código. Na dúvida, desligar o
+  efeito suspeito e renderizar de novo.
+
+## 10. Faces coplanares também no topo do muro
+
+**O que aconteceu:**
+- O miolo entre as ameias tinha o topo na mesma altura do topo das ameias. As duas faces disputavam o mesmo plano e
+  piscavam no meio do muro.
+
+**Regra:**
+- Vale a regra 5 também para peças empilhadas lado a lado: se duas peças chegam à mesma altura, uma fica pelo menos
+  2–4 cm abaixo. Conferir olhando de cima, ao longo do topo do muro.
+
+## 11. Crítico no Kit Lab: no mínimo 2 rodadas
 
 **O que aconteceu:**
 - Modelos foram dados como prontos depois de uma conferência minha só. O usuário então achou defeitos que um
@@ -158,6 +189,7 @@ node tools/kitlab/shots/kitlab_look.mjs  <pasta> complex "nome:ex,ey,ez,ax,ay,az
 - [ ] Magenta = 0 em toda peça isolada.
 - [ ] Nada apoiado no chão sem base enterrada ≥ 2 m.
 - [ ] Nenhuma face coplanar (afastamento ≥ 2 cm).
+- [ ] Efeitos por altura (areia, poeira, umidade) presos ao chão do lugar, conferidos em vários pontos do complexo.
 - [ ] Nenhum trecho atravessando outro elemento.
 - [ ] Página do Kit Lab e `dev.html` sem erros de sintaxe nem de WGSL.
 - [ ] Crítico no Kit Lab: **≥ 2 rodadas**, a última sem nada acima de Menor (ou limitações registradas).

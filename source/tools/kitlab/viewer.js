@@ -1,7 +1,7 @@
 // ---- tools/kitlab/viewer.js: the Kit Lab's viewer (WebGL2). Draws a built mesh with flat lighting and colours by
 // material, an orbit camera, the kit photos' framings, the kit photo beside or over it, and a check for missing faces.
 const REF_DIR = '../../../reference/kb3d/pyramid_detail/', REF_RENDERS = '../../../reference/kb3d/renders/', KIT_SCALE = 2.4;
-const refDir = () => (model && model.refs === 'renders' ? REF_RENDERS : REF_DIR);
+const refDir = () => (model && model.refDir ? model.refDir : model && model.refs === 'renders' ? REF_RENDERS : REF_DIR);
 const $ = (id) => document.getElementById(id);
 const canvas = $('c'), gl = canvas.getContext('webgl2', { antialias: true, preserveDrawingBuffer: true });
 if (!gl) throw new Error('WebGL2 is not available in this browser.');
@@ -18,7 +18,7 @@ in vec3 vn; in vec3 vp; flat in vec4 vm; in float ao; uniform vec3 eye; uniform 
 vec3 pig(float k) { int i = int(k / 51. + .5);
   return i == 0 ? vec3(${PIG[0]}) : i == 1 ? vec3(${PIG[1]}) : i == 2 ? vec3(${PIG[2]}) : i == 3 ? vec3(${PIG[3]}) : i == 4 ? vec3(${PIG[4]}) : vec3(${PIG[5]}); }
 vec3 base() { int mt = int(vm.x + .5); float ea = vm.y, eb = vm.z;
-  if (mt == ${M.MARBLE}) { if (eb > 90. && eb < 110. && ea > 128.) return vec3(.86, .83, .76); return vec3(.8, .66, .47) * (eb > 250. ? .93 : 1.); }
+  if (mt == ${M.MARBLE}) { if (eb > 90. && eb < 110. && ea > 128.) return vec3(.05, .05, .055); /* (the far pyramid: polished black granite) */ return vec3(.8, .66, .47) * (eb > 250. ? .93 : 1.); }
   if (mt == ${M.PLASTER}) return eb > 180. && eb < 230. ? pig(ea) : vec3(.8, .68, .52);
   if (mt == ${M.GOLD}) return vec3(.92, .68, .26);
   if (mt == ${M.TRIM}) return vec3(.87, .79, .65);
@@ -38,6 +38,7 @@ void main() {
   float d = max(dot(N, L), 0.); float hemi = .5 + .5 * N.y;
   vec3 c = base(); vec3 col = c * (vec3(1., .96, .88) * d * .78 + mix(vec3(.24, .22, .2), vec3(.42, .46, .52), hemi) * (.55 + .45 * ao));
   if (int(vm.x + .5) == ${M.GOLD}) col += vec3(1., .85, .5) * pow(max(dot(reflect(-L, N), V), 0.), 24.) * .5;
+  if (int(vm.x + .5) == ${M.MARBLE} && vm.z > 90. && vm.z < 110. && vm.y > 128.) { vec3 R = reflect(-V, N); col += mix(vec3(.25, .27, .3), vec3(.55, .65, .8), clamp(R.y * .5 + .5, 0., 1.)) * .35 + vec3(1., .95, .85) * pow(max(dot(reflect(-L, N), V), 0.), 60.) * .6; } /* its polish: sky and sun mirrored */
   o = vec4(pow(col, vec3(.95)), 1.); }`;
 function sh(t, s) { const o = gl.createShader(t); gl.shaderSource(o, s); gl.compileShader(o); if (!gl.getShaderParameter(o, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(o)); return o; }
 const prog = gl.createProgram(); gl.attachShader(prog, sh(gl.VERTEX_SHADER, vs)); gl.attachShader(prog, sh(gl.FRAGMENT_SHADER, fs)); gl.linkProgram(prog);
@@ -123,7 +124,7 @@ let view = 'az045';
 function setView(v) {
   view = v || 'az045'; v = view; if (!cur || !model.build) { refreshRef(); syncButtons(); return; } /* (after a free camera there is no named view: frame from 45°) */ const { c, d } = bbox(), asp = 4 / 3; cam.tgt = c.slice();
   if (v.startsWith('az')) { // perspective, 35 mm lens, framing the bounding sphere as the photos do
-    const az = +v.slice(2, 5) * DEG, el = (isComplexLow() ? 12 : model.kit === 'complex' ? 30 : 22) * DEG, lens = isComplexLow() ? 28 : 35, mrg = isComplexLow() ? 0.8 : 1;
+    const az0 = +v.slice(2, 5), azs = model.orbit ? Math.round(az0 / model.orbit.step) * model.orbit.step : az0, az = azs * DEG, el = (model.orbit ? model.orbit.el : isComplexLow() ? 12 : model.kit === 'complex' ? 30 : 22) * DEG, lens = isComplexLow() ? 28 : 35, mrg = isComplexLow() ? 0.8 : 1;
     const R = hypot(...d) / 2 * mrg * ((model.frame || {}).az || 1); cam.ortho = false; cam.fovY = 2 * Math.atan(13.5 / lens); cam.dist = R / tan(Math.atan(18 / lens) * 0.92);
     // Blender offset (sin az cos el, -cos az cos el, sin el) -> here (-sin az cos el, sin el, -cos az cos el)
     cam.yaw = -az; cam.pit = el; // camEye's offset is (cos pit sin yaw, sin pit, -cos pit cos yaw)
@@ -146,6 +147,7 @@ function refFiles() {
   if (model.refs === 'renders') return [`${model.kit}.png`, `${model.kit}_front.png`, `${model.kit}_top.png`];
   if (model.kit === 'complex') { const L = []; for (const e of ['30', '12']) for (let a = 0; a < 360; a += 45) L.push(`complex_az${String(a).padStart(3, '0')}_el${e}.png`); for (let a = 0; a < 360; a += 45) L.push(`complex_eye_az${String(a).padStart(3, '0')}.png`); L.push('complex_ortho_top.png'); return L; }
   const p = `part_${model.kit}_`, L = [];
+  if (model.orbit) { for (const e of [0, 20, 45]) for (let a = 0; a < 360; a += model.orbit.step) L.push(`${p}az${String(a).padStart(3, '0')}_el${String(e).padStart(2, '0')}.png`); for (const o of ['front', 'back', 'left', 'right', 'top']) L.push(`${p}ortho_${o}.png`); for (const f of ['south', 'north', 'west', 'east']) for (const h of ['foot', 'mid', 'top']) for (const c of ['l', 'c', 'r']) L.push(`${p}close_${f}_${h}_${c}.png`); return L; }
   for (const a of [45, 135, 225, 315]) L.push(`${p}az${String(a).padStart(3, '0')}_el22.png`);
   for (const o of ['front', 'back', 'left', 'right', 'top']) L.push(`${p}ortho_${o}.png`);
   for (const f of ['south', 'north', 'west', 'east']) for (const h of ['foot', 'mid', 'top']) L.push(`${p}close_${f}_${h}.png`);
@@ -155,6 +157,7 @@ function refForView() {
   if (!model || !model.kit) return '';
   if (model.refs === 'renders') return view === 'front' ? `${model.kit}_front.png` : view === 'top' ? `${model.kit}_top.png` : `${model.kit}.png`;
   if (model.kit === 'complex') return view.startsWith('az') ? `complex_${view}_el${complexLow ? 12 : 30}.png` : view === 'top' ? 'complex_ortho_top.png' : '';
+  if (model.orbit && view.startsWith('az')) { const a = Math.round(+view.slice(2, 5) / model.orbit.step) * model.orbit.step; return `part_${model.kit}_az${String(a).padStart(3, '0')}_el${String(model.orbit.el).padStart(2, '0')}.png`; }
   return view.startsWith('az') ? `part_${model.kit}_${view}_el22.png` : `part_${model.kit}_ortho_${view}.png`;
 }
 function refreshRef(file) {
@@ -237,7 +240,7 @@ addEventListener('keydown', (e) => { if (e.code === 'KeyF') setView(view || 'az0
 function info() {
   if (!cur) return; const { d } = bbox(), f = (v) => v.toFixed(1);
   let kit = '';
-  const kd = model && KIT_DIMS[model.kit];
+  const kd = model && (model.kitDims || KIT_DIMS[model.kit]);
   if (kd) { const k = [kd[0] * KIT_SCALE, kd[2] * KIT_SCALE, kd[1] * KIT_SCALE]; kit = `   kit ×${KIT_SCALE}: <b>${f(k[0])} × ${f(k[1])} × ${f(k[2])}</b> m   (diferença ${['x', 'y', 'z'].map((a, i) => `${a} ${d[i] - k[i] >= 0 ? '+' : ''}${f(d[i] - k[i])}`).join('  ')})`; }
   const e = camEye();
   $('info').innerHTML = `nosso: <b>${f(d[0])} × ${f(d[1])} × ${f(d[2])}</b> m (largura × altura × profundidade)${kit}\n${cur.nv.toLocaleString()} vértices · ${(cur.n / 3).toLocaleString()} triângulos · câmera ${f(e[0])}, ${f(e[1])}, ${f(e[2])} → ${f(cam.tgt[0])}, ${f(cam.tgt[1])}, ${f(cam.tgt[2])}${cam.ortho ? ' (orto)' : ''}`;

@@ -847,7 +847,7 @@ function meshEnclosure(h, lod, gate = KP.gateX) {
     const FT = (trim, d0, d1, y0, y1) => { const a = alongX ? -L0 / 2 - t - 3.02 : -L0 / 2 + (j0 ? trim : -2.5), b = alongX ? L0 / 2 + t + 3.02 : L0 / 2 - (j1 ? trim : -2.5); T((a + b) / 2, (b - a) / 2, (b - a) / 2, d0, d1, y0, y1); };
     mb.mat = M.MARBLE; mb.ea = WEATHERED; FT(t + 3.0, t + 3.0, t + 2.5, -2, 0.3); FT(t + 2.1, t + 2.5, t + 2.1, 0.3, 1.6); mb.ea = 0;
     mb.mat = M.MARBLE; mb.eb = GLYPH; mb.ea = 20; frustum(mb, cx, cz, alongX ? L / 2 : t, alongX ? t : L / 2, alongX ? L / 2 : t * 0.92, alongX ? t * 0.92 : L / 2, 1.6, hb, false); mb.eb = mb.ea = 0;
-    paint(mb, WHITE); B(-L / 2, L / 2, t * 0.92, hb, hn); mb.ao = 0.42; B(-L / 2, L / 2, t * 0.3, hn, h); mb.ao = 1;
+    paint(mb, WHITE); B(-L / 2, L / 2, t * 0.92, hb, hn); mb.ao = 0.42; B(-L / 2, L / 2, t * 0.3, hn, h - 0.04); mb.ao = 1; /* (its top 4 cm under the merlons': no shared plane) */
     for (const sd of [-1, 1]) { paint(mb, RED); B(-L / 2, L / 2, 0.06, hb - 0.75, hb - 0.55, 0, sd * (t * 0.94)); B(-L / 2, L / 2, 0.06, 1.95, 2.15, 0, sd * (t * 0.99)); }
     const nb = max(1, round(L / 14));
     for (let i = 0; i <= nb; i++) {
