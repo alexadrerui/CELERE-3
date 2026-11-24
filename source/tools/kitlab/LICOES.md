@@ -109,6 +109,9 @@ Leia antes de mexer em qualquer modelo do kit, e siga o checklist no fim antes d
 **Regra:**
 - Câmeras no complexo com y ≥ 7 (chão a 5 m + 2 m de olho). Para olhar algo de baixo, ponha a câmera no chão e
   aponte para cima.
+- Servidor de testes (`serve.mjs`): no Windows, passe a raiz com barras invertidas (`'D:\VSCodetlantis'`). Com
+  `D:/...` ele responde 404 para tudo e o teste falha com `requestAdapter` indefinido, que parece falta de WebGPU.
+  Antes de concluir qualquer coisa sobre o navegador, confira `curl http://127.0.0.1:8123/dev.html` → 200.
 - Benchmark: rode `node build.mjs --dev` antes. Se o resultado oscilar, faça um A/B (versão publicada × nova) na
   mesma máquina antes de concluir qualquer coisa.
 
