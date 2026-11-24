@@ -169,7 +169,10 @@ const terrainH = (x, z) => {
   const fb = z - FAR_BANK(x);
   if (fb > -120) h = max(h, mix(-9, 3 + 0.004 * max(fb, 0), sstep(-120, 140, fb)) + dunes(x + 517, z - 233) * sstep(160, 700, fb));
   // the far-bank pyramid complex stands on a levelled terrace
-  { const F = FARPYR, w = sstep(F.wallX + 140, F.wallX + 100, abs(x)) * sstep(F.zb - 6, F.zb + 10, z) * sstep(F.wallS + 60, F.wallS + 20, z); if (w > 0) h = mix(h, F.y - 0.3, w); }
+  { // the far complex's terrace: down to the water only under the quay and the promenade; the precinct's wide level
+    // starts well inland, so the bank keeps its natural curve either side
+    const F = FARPYR, near = sstep(F.zb + 48, F.zb + 70, z) * sstep(110, 50, abs(x)), far = sstep(F.zb + 140, F.zb + 230, z) * sstep(F.wallX + 140, F.wallX + 100, abs(x));
+    const w = max(near, far) * sstep(F.wallS + 60, F.wallS + 20, z); if (w > 0) h = mix(h, F.y - 0.3, w); }
   // the near (northern) bank, running on east and west of the city's shore, so the water reads as a river
   const nb = NEAR_BANK(x) - z, nw = sstep(700, 1250, abs(x)) * sstep(70, 0, d);
   if (nw > 0 && nb > -120) h = max(h, mix(-60, mix(-9, 3 + 0.004 * max(nb, 0), sstep(-120, 140, nb)) + dunes(x - 311, z + 97) * sstep(180, 700, nb), nw));

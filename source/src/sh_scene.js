@@ -293,7 +293,11 @@ fn terrain(p: vec3f, dx: vec3f, dy: vec3f, fw: f32, n: vec3f, tv: vec3f) -> Mt {
   // Pale wind-rippled sand, paler on the crests, warmer and redder in the hollows, with grey-brown gravel flats
   // the Nile's far bank keeps a strip of flood plain (green) between the water and the dunes, the complex's terrace apart
   let fbz = p.z - (1850. +220. * sin(p.x / 950. + 1.) + 100. * sin(p.x / 380. + 2.2));
-  let farLush = ss(-6., 6., fbz) * ss(190., 100., fbz + (L.r - .5) * 60.) * (1. - ss(165., 140., abs(p.x)) * ss(4., 12., fbz));
+  // (its inland edge wanders 50-210 m from the water in broad soft lobes; it thins out irregularly toward the quay and
+  // the promenade, never in a straight line; patchy fields and fallow inside it)
+  let fEdge = 70. + 150. * ss(.2, .8, R.r) + (L.r - .5) * 60.;
+  let fGap = ss(55., 150., abs(p.x) + (R.g - .5) * 140. + (L.g - .5) * 40.);
+  let farLush = ss(-6., 6., fbz) * ss(fEdge + 40., fEdge - 40., fbz) * fGap * (.95 + .35 * ss(.3, .62, L.b + (M.r - .5) * .3));
   let lush = ss(.35, .65, max(max(max(crop.a, ss(.02, .2, mp.a)), ss(.05, .5, wet)), farLush) + (L.r - .5) * .45 + (A.r - .5) * .2);
   var sand = mix(vec3f(.64, .49, .32), vec3f(.74, .6, .42), sat(.5 - hollow * .7 + (L.g - .5) * .6)); // (per-vertex hollows only lightly: strongly they draw the mesh grid)
   sand = mix(sand, vec3f(.56, .37, .22), ss(.45, .8, R.r + (L.r - .5) * .5) * .45);
@@ -552,7 +556,7 @@ const FLOWERS = array<vec3f, 8>(vec3f(.52, .08, .24), vec3f(.8, .36, .5), vec3f(
     let S = tri(tNoiseA, p, dx, dy, w, .085); let S2 = tri(tNoiseA, p, dx, dy, w, .6);
     let lie = ss(.6, .92, N.y) * ss(select(.36, .24, p.z > ${FARPYR.zb - 60}), .56, S.r + (S2.a - .5) * .35 + (S2.r - .5) * .2);
     // (ground level: the city's land, or the far-bank complex's terrace)
-    let gy = select(${LAND}., ${FARPYR.y}., p.z > ${FARPYR.zb - 60});
+    let gy = select(${LAND}., ${FARPYR.y}., p.z > ${FARPYR.zb - 60} && abs(p.x) < 46.); // (the far quay's level only along the promenade)
     let bank = ss(1.4 + .8 * S.g, 0., p.y - gy + (S2.r - .5) * .6) * ss(gy - .4, gy - .1, p.y) * (1. - ss(.6, .9, N.y));
     let dr = sat(max(lie, bank * ss(.3, .55, S.r + .15))) * (1. - o.inlay); // the swept inlay stays clear
     o.alb = mix(o.alb, mix(vec3f(.67, .52, .35), vec3f(.74, .6, .42), S2.r) * (.9 + .2 * S2.a), dr);

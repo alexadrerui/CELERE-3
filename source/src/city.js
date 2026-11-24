@@ -450,7 +450,7 @@ function populate({ type, put, paint, MAP, balRun, gH, hard }) {
     for (const z of [tz - 70, tz + 70]) put(tBan, tx + 60, F.y, z, 1, qYaw(0));
     const tTorch = type([meshKitTorch()], K.SOLID, 300, 1e9, 1e9);
     for (const sd of [-1, 1]) for (const o of [-4.5, 4.5]) put(tTorch, tx + 45 + 9.5, F.y, tz + sd * 40 + o);
-    for (const o of [-6, 6]) put(tTorch, o * 1.9, F.y, F.wallN - 11);
+    for (const o of [-4.2, 4.2]) put(tTorch, o, F.y, F.wallN - 10.5); // flanking the doorway
     const tPots = type([meshKitPots()], K.SOLID, 250, 1e9, 1e9);
     for (const [u, v, a] of [[30, -30, 0.4], [34, 22, 2.1], [-4, -45, 1.2]]) put(tPots, tx + u, F.y + 12.5, tz + v, 1, qYaw(a));
     put(tPots, tx + 58, F.y, tz - 49, 1, qYaw(2.6));
