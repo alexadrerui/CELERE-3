@@ -28,8 +28,8 @@ function kitComplex(lod) {
 }
 function kitFireBowl(lod) { const mb = new MB(512); fireBowl(mb, 0, 0, 0, 3.0, lod ? 8 : 14); return mb.build(); }
 
-const MODELS = [
-  { id: 'complex', name: 'Complexo inteiro', kit: 'complex', build: kitComplex },
+const MODELS = [ // group 'complex': the pyramid complex, in the scene
+  { id: 'complex', name: 'Complexo da pirâmide', kit: 'complex', build: kitComplex },
   { id: 'pyramid', name: 'Pirâmide', kit: 'BuildingB', build: () => meshPyramidCased(107.75, 99.9) },
   { id: 'entrance', name: 'Entrada (portão)', kit: 'BuildingA', build: (l) => meshKitEntrance(l) },
   { id: 'terrace', name: 'Terraço', kit: 'BuildingC', build: (l) => { const mb = new MB(1 << 15); mb.add(meshKitTerrace(l), 0, 0, 0, PI); return mb.build(); } }, // (turned as in the complex, so it matches the kit photos)
@@ -41,3 +41,12 @@ const MODELS = [
   { id: 'pots', name: 'Potes de barro', kit: 'ClayPots', build: () => meshKitPots() },
   { id: 'beam', name: 'Viga caída', kit: '', build: () => meshKitBeam() },
 ];
+for (const m of MODELS) { m.group = 'complex'; if (m.id !== 'complex') m.parent = 'complex'; } // (its parts fold under the complex)
+// the kit's other large buildings: the kit's renders, size and parts, until a model is built for each (then give the
+// entry a build(lod) and it is compared like the rest)
+const KIT_LARGE_PT = { BldgLgTempleOfAnubis_A: 'Templo de Anúbis', BldgLgPyramidConstruction_A: 'Pirâmide em construção', BldgLgObelisk_A: 'Grande obelisco',
+  BldgLgSacrificialAltar_A: 'Altar de sacrifícios', BldgLgEmbalmingTemple_A: 'Templo de embalsamamento', BldgLgRoyalGarden_A: 'Jardim real',
+  BldgLgRoyalPalace_A: 'Palácio real', BldgLgObservatory_A: 'Observatório' };
+const RANK = { high: 0, medium: 1, low: 2, '': 3 };
+for (const a of KIT_LARGE.filter((a) => a.id !== 'BldgLgPyramid_A').sort((p, q) => RANK[p.rel] - RANK[q.rel] || q.dims[0] * q.dims[1] - p.dims[0] * p.dims[1]))
+  MODELS.push({ id: a.id, name: KIT_LARGE_PT[a.id] || a.id, kit: a.id, group: 'large', refs: 'renders', kitInfo: a, build: null });

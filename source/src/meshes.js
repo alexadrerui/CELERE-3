@@ -545,7 +545,7 @@ function meshKitObelisk(s) {
     F(S(-2.57), S(2.57), -2, S(0.16)); F(S(-2.57), S(2.57), S(0.86), S(1.0)); // rails
     for (let i = 0; i <= 5; i++) { const u = S(-2.57 + i * 1.028); F(u - S(0.08), u + S(0.08), S(0.16), S(0.86)); } // posts
   }
-  mb.mat = M.GOLD; mb.eb = mb.ea = 0; { const r = S(0.08), e = S(2.6), y = S(1.05); mb.tube([[-e, y, -e, r], [e, y, -e, r], [e, y, e, r], [-e, y, e, r], [-e, y, -e, r], [e, y, -e, r]], 8, false); } // the round gold roll between dado and cavetto
+  mb.mat = M.GOLD; mb.eb = mb.ea = 0; { const r = S(0.08), e = S(2.6), y = S(1.05); mb.tube([[0, y, -e, r], [e, y, -e, r], [e, y, e, r], [-e, y, e, r], [-e, y, -e, r], [0.4, y, -e, r]], 8); /* starts and ends mid-side, its ends overlapping inside it (no open ring at a corner) */ } // the round gold roll between dado and cavetto
   paint(mb, RED); const cv = (f) => 2.58 + 0.42 * f * f; for (let i = 0; i < 4; i++) { const a = i / 4, b = (i + 1) / 4; frustum(mb, 0, 0, S(cv(a)), S(cv(a)), S(cv(b)), S(cv(b)), S(1.12 + 0.48 * a), S(1.12 + 0.48 * b), false); } // a concave cavetto
   if (true) for (let i = 0; i < 22; i++) {
     paint(mb, i % 2 ? BLUE : OCHRE); const u = S(-2.6 + (i + 0.5) * 5.2 / 22), hw = S(0.055), y0 = S(1.14), y1 = S(1.58);
@@ -836,12 +836,16 @@ function meshKitBeam() { const mb = new MB(64); mb.mat = M.MARBLE; mb.ea = WEATH
 // framed in red between pale pilasters; a white upper band notched with shallow trapezoidal crenels; taller piers
 function meshEnclosure(h, lod, gate = KP.gateX) {
   const mb = new MB(1 << 15), t = 1.6, hb = h * 0.55, hn = h - 0.42 * (h - hb);
-  const run = (x0, z0, x1, z1, piers = true) => {
-    const L = hypot(x1 - x0, z1 - z0), cx = (x0 + x1) / 2, cz = (z0 + z1) / 2, alongX = abs(x1 - x0) > abs(z1 - z0);
+  // runs along x carry on t past both ends to close the corners (their end a hair proud of the cross wall's face);
+  // runs along z stop their footing and piers short at joined ends (j0: the end at the lower coordinate, j1 the upper),
+  // so no two runs share a face anywhere (that flickered)
+  const run = (x0, z0, x1, z1, piers = true, j0 = true, j1 = true) => {
+    const L0 = hypot(x1 - x0, z1 - z0), alongX0 = abs(x1 - x0) > abs(z1 - z0), L = alongX0 ? L0 + 2 * (t + 0.02) : L0, cx = (x0 + x1) / 2, cz = (z0 + z1) / 2, alongX = abs(x1 - x0) > abs(z1 - z0);
     const B = (u0, u1, d, y0, y1, bev = 0, o = 0) => alongX ? mb.box(cx + u0, y0, cz + o - d, cx + u1, y1, cz + o + d, bev) : mb.box(cx + o - d, y0, cz + u0, cx + o + d, y1, cz + u1, bev);
     const T = (u, a0, a1, d0, d1, y0, y1) => alongX ? frustum(mb, cx + u, cz, a0, d0, a1, d1, y0, y1, true) : frustum(mb, cx, cz + u, d0, a0, d1, a1, y0, y1, true);
     // footing (its ends run on past the corners, so the corners close)
-    mb.mat = M.MARBLE; mb.ea = WEATHERED; T(0, L / 2 + 2.5, L / 2 + 2.5, t + 3.0, t + 2.5, -2, 0.3); T(0, L / 2 + 2.5, L / 2 + 2.5, t + 2.5, t + 2.1, 0.3, 1.6); mb.ea = 0;
+    const FT = (trim, d0, d1, y0, y1) => { const a = alongX ? -L0 / 2 - t - 3.02 : -L0 / 2 + (j0 ? trim : -2.5), b = alongX ? L0 / 2 + t + 3.02 : L0 / 2 - (j1 ? trim : -2.5); T((a + b) / 2, (b - a) / 2, (b - a) / 2, d0, d1, y0, y1); };
+    mb.mat = M.MARBLE; mb.ea = WEATHERED; FT(t + 3.0, t + 3.0, t + 2.5, -2, 0.3); FT(t + 2.1, t + 2.5, t + 2.1, 0.3, 1.6); mb.ea = 0;
     mb.mat = M.MARBLE; mb.eb = GLYPH; mb.ea = 20; frustum(mb, cx, cz, alongX ? L / 2 : t, alongX ? t : L / 2, alongX ? L / 2 : t * 0.92, alongX ? t * 0.92 : L / 2, 1.6, hb, false); mb.eb = mb.ea = 0;
     paint(mb, WHITE); B(-L / 2, L / 2, t * 0.92, hb, hn); mb.ao = 0.42; B(-L / 2, L / 2, t * 0.3, hn, h); mb.ao = 1;
     for (const sd of [-1, 1]) { paint(mb, RED); B(-L / 2, L / 2, 0.06, hb - 0.75, hb - 0.55, 0, sd * (t * 0.94)); B(-L / 2, L / 2, 0.06, 1.95, 2.15, 0, sd * (t * 0.99)); }
@@ -855,20 +859,20 @@ function meshEnclosure(h, lod, gate = KP.gateX) {
     }
     const nm = max(1, round(L / 7.2)), p = L / nm; paint(mb, WHITE);
     for (let i = 0; i < nm; i++) T(-L / 2 + (i + 0.5) * p, p * 0.375, p * 0.3, t * 0.92, t * 0.92, hn, h);
-    if (piers) { const np = max(1, round(L / 48)); for (let i = 0; i <= np; i++) { const u = -L / 2 + i * L / np; paint(mb, WHITE); B(u - 1.8, u + 1.8, t + 0.4, 0, h + 0.6); unpaint(mb, M.TRIM); B(u - 2.1, u + 2.1, t + 0.7, h + 0.6, h + 1.1, lod ? 0 : 0.06); /* (barely above the crest, as on the kit) */ } }
+    if (piers) { const np = max(1, round(L / 48)); for (let i = 0; i <= np; i++) { if (!alongX && ((i === 0 && j0) || (i === np && j1))) continue; /* (the cross run's pier stands there) */ const u = -L0 / 2 + i * L0 / np; paint(mb, WHITE); B(u - 1.8, u + 1.8, t + 0.4, 0, h + 0.6); unpaint(mb, M.TRIM); B(u - 2.1, u + 2.1, t + 0.7, h + 0.6, h + 1.1, lod ? 0 : 0.06); /* (barely above the crest, as on the kit) */ } }
     mb.eb = mb.ea = 0;
   };
   const { wallW: W, wallE: E, wallZ: Z, bumpX: X, bumpZ: J, gapZ: G } = KP;
   run(E, Z, W, Z); run(E, -Z, -gate, -Z); run(gate, -Z, W, -Z); run(W, -Z, W, Z); // north, south (the entrance's gap), west
   run(E, -Z, E, -J); run(E, J, E, Z); // east, stopping at the bay's side walls (the bay is open to the court)
-  run(X, -J, E, -J, false); run(X, J, E, J, false); run(X, -J, X, -G, false); run(X, G, X, J, false); // the bay; the pavilions fill its middle
+  run(X, -J, E, -J, false); run(X, J, E, J, false); run(X, -J, X, -G, false, true, false); run(X, G, X, J, false, false, true); // the bay; the pavilions fill its middle
   return mb.build();
 }
 // the far complex's plan, measured off the kit (tools/kitlab/pyr_plan.py, reference/kb3d/plan/plan.json)
 // metres at 2.4x, relative to the pyramid's centre; x mirrored from the kit (its east, the terrace's side, is -x here)
 const KP = {
   wallW: 121, wallE: -141.6, wallZ: 121.2, // the enclosure's wall lines
-  bumpX: -187, bumpZ: 40.8, gapZ: 19.2, // the bay out round the terrace building (-x side); its walls open |z| < gapZ
+  bumpX: -187, bumpZ: 40.8, gapZ: 24, // the bay out round the terrace building (-x side); its walls open |z| < gapZ
   gateX: 29, // the entrance's gap in the front wall (the entrance building fills it)
   terrace: [-131.6, 0], // the terrace building's block centre (its front, the pavilions, facing -x)
   entranceZ: -125.1, // the entrance's wall line (its towers 5.7 m out from the wall)

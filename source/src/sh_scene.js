@@ -419,8 +419,9 @@ const FLOWERS = array<vec3f, 8>(vec3f(.52, .08, .24), vec3f(.8, .36, .5), vec3f(
         let speck = ss(.72, .9, G.r) * sat(1. - fw / .08); let grey = ss(.6, .85, G2.a) * .5;
         o.alb = vec3f(.022, .022, .026) * (.85 + .3 * bl) + vec3f(.07, .066, .06) * grey + vec3f(.26, .24, .22) * speck;
         o.alb *= 1. - .6 * line(ed, .02, fw); // hairline joints
-        let dust = ss(${(FARPYR.y + 14).toFixed(1)}, ${(FARPYR.y).toFixed(1)}, p.y + (G2.r - .5) * 6.);
-        o.alb = mix(o.alb, vec3f(.36, .28, .19), dust * .35); o.rough = mix(.09, .45, dust) + .05 * G2.r;
+        // a thin film of blown dust at its foot, fading softly over the first metres, its edge only faintly ragged
+        let dust = ss(${(FARPYR.y + 3.5).toFixed(1)}, ${(FARPYR.y).toFixed(1)}, p.y + (G.a - .5) * .5) * .8;
+        o.alb = mix(o.alb, vec3f(.4, .32, .22), dust * .45); o.rough = mix(.17, .55, dust) + .03 * G2.r; // (polished, yet not a perfect mirror: reflections soft, no ragged edges)
         o.nb = triN(p, dx, dy, w, 2.3, false) * .015;
       }
     }

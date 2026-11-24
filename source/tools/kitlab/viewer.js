@@ -1,6 +1,7 @@
 // ---- tools/kitlab/viewer.js: the Kit Lab's viewer (WebGL2). Draws a built mesh with flat lighting and colours by
 // material, an orbit camera, the kit photos' framings, the kit photo beside or over it, and a check for missing faces.
-const REF_DIR = '../../../reference/kb3d/pyramid_detail/', KIT_SCALE = 2.4;
+const REF_DIR = '../../../reference/kb3d/pyramid_detail/', REF_RENDERS = '../../../reference/kb3d/renders/', KIT_SCALE = 2.4;
+const refDir = () => (model && model.refs === 'renders' ? REF_RENDERS : REF_DIR);
 const $ = (id) => document.getElementById(id);
 const canvas = $('c'), gl = canvas.getContext('webgl2', { antialias: true, preserveDrawingBuffer: true });
 if (!gl) throw new Error('WebGL2 is not available in this browser.');
@@ -94,7 +95,13 @@ function draw() {
   if (!cur) return;
   const { VP, eye } = matrices(w / h); gl.useProgram(prog); gl.uniformMatrix4fv(uVP, false, VP); gl.uniform3fv(uEye, eye); gl.uniform1i(uBacks, $('backs').checked ? 1 : 0); gl.uniform1i(uMode, 0);
   if ($('ground').checked) { const s = hypot(cur.hi[0] - cur.lo[0], cur.hi[2] - cur.lo[2]) * 3 + 20; groundAt(-0.02, s); gl.bindVertexArray(gvao); gl.uniform1i(uBacks, 0); gl.uniform1i(uMode, 2); gl.drawArrays(gl.TRIANGLE_FAN, 0, 4); gl.uniform1i(uMode, 0); gl.uniform1i(uBacks, $('backs').checked ? 1 : 0); }
-  gl.bindVertexArray(cur.vao); gl.drawElements(gl.TRIANGLES, cur.n, gl.UNSIGNED_INT, 0);
+  // front faces first, then back faces pushed a little away in depth: a back face shows (magenta) only where no front
+  // face covers it, i.e. a real hole, not a thin plate's far side winning a depth tie from afar (the game culls back
+  // faces, so those never show there)
+  gl.bindVertexArray(cur.vao); gl.enable(gl.CULL_FACE);
+  gl.cullFace(gl.BACK); gl.drawElements(gl.TRIANGLES, cur.n, gl.UNSIGNED_INT, 0);
+  gl.cullFace(gl.FRONT); gl.enable(gl.POLYGON_OFFSET_FILL); gl.polygonOffset(2, 8); gl.drawElements(gl.TRIANGLES, cur.n, gl.UNSIGNED_INT, 0);
+  gl.disable(gl.POLYGON_OFFSET_FILL); gl.disable(gl.CULL_FACE);
   if ($('wire').checked) { gl.uniform1i(uMode, 1); gl.enable(gl.BLEND); gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA); gl.depthFunc(gl.LEQUAL); gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, cur.eb); gl.drawElements(gl.LINES, cur.nl, gl.UNSIGNED_INT, 0); gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, cur.ib); gl.disable(gl.BLEND); gl.depthFunc(gl.LESS); }
   gl.bindVertexArray(null);
   info();
@@ -114,7 +121,7 @@ addEventListener('resize', fitFrames); fitFrames();
 const bbox = () => ({ c: [0, 1, 2].map((k) => (cur.lo[k] + cur.hi[k]) / 2), d: [0, 1, 2].map((k) => cur.hi[k] - cur.lo[k]) });
 let view = 'az045';
 function setView(v) {
-  view = v || 'az045'; v = view; if (!cur) return; /* (after a free camera there is no named view: frame from 45°) */ const { c, d } = bbox(), asp = 4 / 3; cam.tgt = c.slice();
+  view = v || 'az045'; v = view; if (!cur || !model.build) { refreshRef(); syncButtons(); return; } /* (after a free camera there is no named view: frame from 45°) */ const { c, d } = bbox(), asp = 4 / 3; cam.tgt = c.slice();
   if (v.startsWith('az')) { // perspective, 35 mm lens, framing the bounding sphere as the photos do
     const az = +v.slice(2, 5) * DEG, el = (isComplexLow() ? 12 : model.kit === 'complex' ? 30 : 22) * DEG, lens = isComplexLow() ? 28 : 35, mrg = isComplexLow() ? 0.8 : 1;
     const R = hypot(...d) / 2 * mrg * ((model.frame || {}).az || 1); cam.ortho = false; cam.fovY = 2 * Math.atan(13.5 / lens); cam.dist = R / tan(Math.atan(18 / lens) * 0.92);
@@ -136,6 +143,7 @@ let complexLow = false; const isComplexLow = () => model && model.kit === 'compl
 // reference photo for the current model and view
 function refFiles() {
   if (!model || !model.kit) return [];
+  if (model.refs === 'renders') return [`${model.kit}.png`, `${model.kit}_front.png`, `${model.kit}_top.png`];
   if (model.kit === 'complex') { const L = []; for (const e of ['30', '12']) for (let a = 0; a < 360; a += 45) L.push(`complex_az${String(a).padStart(3, '0')}_el${e}.png`); for (let a = 0; a < 360; a += 45) L.push(`complex_eye_az${String(a).padStart(3, '0')}.png`); L.push('complex_ortho_top.png'); return L; }
   const p = `part_${model.kit}_`, L = [];
   for (const a of [45, 135, 225, 315]) L.push(`${p}az${String(a).padStart(3, '0')}_el22.png`);
@@ -145,6 +153,7 @@ function refFiles() {
 }
 function refForView() {
   if (!model || !model.kit) return '';
+  if (model.refs === 'renders') return view === 'front' ? `${model.kit}_front.png` : view === 'top' ? `${model.kit}_top.png` : `${model.kit}.png`;
   if (model.kit === 'complex') return view.startsWith('az') ? `complex_${view}_el${complexLow ? 12 : 30}.png` : view === 'top' ? 'complex_ortho_top.png' : '';
   return view.startsWith('az') ? `part_${model.kit}_${view}_el22.png` : `part_${model.kit}_ortho_${view}.png`;
 }
@@ -155,23 +164,48 @@ function refreshRef(file) {
 function showRef(f) {
   const img = $('ref'), over = $('over'), empty = $('refEmpty');
   if (!f) { img.removeAttribute('src'); over.removeAttribute('src'); empty.textContent = model && model.kit ? 'Sem foto do kit para esta vista' : 'Este modelo não tem peça correspondente no kit'; $('refTag').textContent = 'Kit original'; return; }
-  empty.textContent = ''; img.className = ''; img.onerror = () => { img.className = 'missing'; empty.textContent = 'Foto não encontrada em reference/kb3d/pyramid_detail/\n(as renders do kit ficam só no seu computador)'; };
-  img.src = REF_DIR + f; over.src = REF_DIR + f; $('refTag').textContent = 'Kit original · ' + f.replace('.png', '');
+  empty.textContent = ''; img.className = ''; img.onerror = () => { img.className = 'missing'; empty.textContent = `Foto não encontrada em ${refDir().replace('../../../', '')}\n(as renders do kit ficam só no seu computador)`; };
+  img.src = refDir() + f; over.src = refDir() + f; $('refTag').textContent = 'Kit original · ' + f.replace('.png', '');
 }
 
 // UI
 let model = null;
 function pick(m) {
   model = m; let mesh;
+  for (const b of $('models').querySelectorAll('button')) b.classList.toggle('on', b.dataset.id === m.id);
+  try { localStorage.kitlabModel = m.id; } catch {}
+  if (!m.build) { // a kit building with no model yet: its photos, size and parts
+    cur = null; $('noModel').style.display = 'flex'; $('ourTag').textContent = 'Nosso modelo · ' + m.name; const a = m.kitInfo, k = (x) => (x * KIT_SCALE).toFixed(0), RL = { high: 'alta', medium: 'média', low: 'baixa' };
+    $('noModel').textContent = `${m.name}\nainda sem modelo procedural\n\nkit ×${KIT_SCALE}: ${k(a.dims[0])} × ${k(a.dims[2])} × ${k(a.dims[1])} m (largura × altura × profundidade)\n${a.parts} peças · relevância: ${RL[a.rel] || '—'}`;
+    $('info').innerHTML = `<b>${m.name}</b> (${m.kit}) · kit ×${KIT_SCALE}: <b>${k(a.dims[0])} × ${k(a.dims[2])} × ${k(a.dims[1])} m</b> · ${a.parts} peças · ${a.tris.toLocaleString()} triângulos no kit\npeças: ${[...new Set(a.names.map((n) => n.replace(/[A-Z]$/, '')))].join(', ')}`;
+    setView(['front', 'top'].includes(view) ? view : 'az045'); redraw(); return;
+  }
+  $('noModel').style.display = 'none';
   try { mesh = m.build(+$('lod').value); } catch (e) { $('err').style.display = 'block'; $('err').textContent = `${m.name}: ${e.message}\n${(e.stack || '').split('\n').slice(1, 4).join('\n')}`; return; }
   $('err').style.display = 'none'; upload(mesh); $('ourTag').textContent = 'Nosso modelo · ' + m.name;
-  for (const b of $('models').children) b.classList.toggle('on', b.dataset.id === m.id);
   $('azs').querySelectorAll('[data-v=low]').forEach((b) => { b.style.display = m.kit === 'complex' ? '' : 'none'; });
   setView(m.kit === 'complex' && !(view.startsWith('az') || view === 'top') ? 'az045' : view);
-  try { localStorage.kitlabModel = m.id; } catch {}
 }
-$('models').innerHTML = MODELS.map((m) => `<button data-id="${m.id}">${m.name}<small>${m.kit ? 'kit: ' + m.kit : 'sem peça no kit'}</small></button>`).join('');
-$('models').onclick = (e) => { const b = e.target.closest('button'); if (b) pick(MODELS.find((m) => m.id === b.dataset.id)); };
+// the list: a building is one entry; its parts (entries with parent: its id) fold under it, opened by clicking it
+let openP = null; try { openP = localStorage.kitlabOpen || null; } catch {}
+function listModels() {
+  const G = { complex: 'Complexo da pirâmide · no jogo', large: 'Outros prédios grandes do kit · sem modelo' }, RL = { high: 'alta', medium: 'média', low: 'baixa' }; let h = '', g = '';
+  for (const m of MODELS) {
+    if (m.parent && m.parent !== openP) continue;
+    if (m.group !== g) { g = m.group; h += `<h3>${G[g] || g}</h3>`; }
+    const r = m.kitInfo && m.kitInfo.rel, tag = r ? `<span class="tag ${r}">${RL[r]}</span>` : '';
+    const kids = MODELS.filter((c) => c.parent === m.id).length, fold = kids ? `<span class="fold">${openP === m.id ? '▾' : '▸'} ${kids} peças</span>` : '';
+    const sub = m.kitInfo ? `${(m.kitInfo.dims[0] * KIT_SCALE).toFixed(0)} × ${(m.kitInfo.dims[1] * KIT_SCALE).toFixed(0)} m · ${m.kitInfo.parts} peças` : m.kit ? 'kit: ' + m.kit : 'sem peça no kit';
+    h += `<button data-id="${m.id}" class="${m.build ? '' : 'todo'}${m.parent ? ' child' : ''}${model && model.id === m.id ? ' on' : ''}">${tag}${fold}${m.name}<small>${sub}</small></button>`;
+  }
+  $('models').innerHTML = h;
+}
+listModels();
+$('models').onclick = (e) => {
+  const b = e.target.closest('button[data-id]'); if (!b) return; const m = MODELS.find((x) => x.id === b.dataset.id);
+  if (MODELS.some((c) => c.parent === m.id)) { openP = openP === m.id && model === m ? null : m.id; try { localStorage.kitlabOpen = openP || ''; } catch {} } // a building: open / close its parts
+  pick(m); listModels();
+};
 $('views').innerHTML = [['front', 'Frente'], ['back', 'Trás'], ['top', 'Topo'], ['left', 'Esquerda'], ['right', 'Direita']].map(([v, n]) => `<button data-v="${v}">${n}</button>`).join('');
 $('azs').innerHTML = [45, 135, 225, 315].map((a) => `<button data-v="az${String(a).padStart(3, '0')}">${a}°</button>`).join('') + [0, 90, 180, 270].map((a) => `<button data-v="az${String(a).padStart(3, '0')}" data-c=1>${a}°</button>`).join('') + '<button data-v=low title="Complexo: fotos baixas (12°)">baixo</button>';
 function syncButtons() {
@@ -183,7 +217,7 @@ $('refSel').onchange = (e) => showRef(e.target.value);
 $('overlay').onchange = () => { $('panes').classList.toggle('over', $('overlay').checked); $('refPane').style.display = $('overlay').checked ? 'none' : ''; fitFrames(); $('over').style.opacity = $('overlay').checked ? $('opacity').value / 100 : 0; redraw(); };
 $('opacity').oninput = () => { if ($('overlay').checked) $('over').style.opacity = $('opacity').value / 100; };
 for (const id of ['backs', 'wire', 'ground']) $(id).onchange = redraw;
-$('lod').onchange = () => { const v = view; pick(model); setView(v); };
+$('lod').onchange = () => { const v = view; pick(model); if (model.build) setView(v); };
 
 // orbit: drag rotates, right-drag pans, wheel zooms; F frames the model
 let drag = null;

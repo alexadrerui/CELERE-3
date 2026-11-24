@@ -17,6 +17,14 @@ button:hover { border-color: var(--gold); }
 button.on { background: #4a3b20; border-color: var(--gold); color: #fff; }
 #models button { display: block; width: 100%; text-align: left; margin: 0 0 4px; }
 #models button small { color: var(--dim); display: block; font-size: 11px; }
+#models h3 { font-size: 11px; color: var(--gold); margin: 12px 0 5px; font-weight: 600; }
+#models h3:first-child { margin-top: 0; }
+#models button.todo { opacity: .8; border-style: dashed; }
+#models button.child { margin-left: 14px; width: calc(100% - 14px); padding: 3px 8px; }
+#models .fold { float: right; font-size: 11px; color: var(--gold); }
+#models .tag { float: right; font-size: 10px; padding: 0 5px; border-radius: 3px; background: #3a3126; color: var(--dim); }
+#models .tag.high { background: #4a3b20; color: var(--gold); }
+#noModel { display: none; position: absolute; inset: 0; align-items: center; justify-content: center; text-align: center; padding: 24px; color: var(--dim); background: #0d0b08; white-space: pre-wrap; line-height: 1.6; }
 .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; }
 .grid4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; margin-top: 4px; }
 label { display: flex; align-items: center; gap: 6px; margin: 4px 0; }
@@ -64,7 +72,7 @@ canvas:active { cursor: grabbing; }
 </aside>
 <main>
   <div id=panes>
-    <div class=pane><span class=tag id=ourTag>Nosso modelo</span><div class=frame><canvas id=c></canvas><img id=over alt=""></div></div>
+    <div class=pane><span class=tag id=ourTag>Nosso modelo</span><div class=frame><canvas id=c></canvas><img id=over alt=""><div id=noModel></div></div></div>
     <div class=pane id=refPane><span class=tag id=refTag>Kit original</span><div class=frame><img id=ref alt=""><div id=refEmpty></div></div></div>
   </div>
   <div id=info></div>
