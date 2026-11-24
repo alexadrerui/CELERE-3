@@ -437,15 +437,18 @@ const FLOWERS = array<vec3f, 8>(vec3f(.52, .08, .24), vec3f(.8, .36, .5), vec3f(
     }
   } else if (mat == 1u || mat == 14u) {
     o = pave(p, dx, dy, fw, N);
+    if (p.z > ${(FARPYR.zb - 60).toFixed(1)}) {
+      // the far bank's flags: dressed blocks 3.2 x 1.6 m in running bond, each its own tone, the joints worn open
+      // (read as blocks, not as a few broad bands, from afar)
+      let row = floor(p.z / 1.6); let u = p.x / 3.2 + .5 * (row - 2. * floor(row * .5));
+      let jb = min(min(fract(u), 1. - fract(u)) * 3.2, min(fract(p.z / 1.6), 1. - fract(p.z / 1.6)) * 1.6);
+      let tb = h21(vec2f(floor(u), row) + 11.); let jl = line(jb, .05, fw);
+      o.alb *= (.8 + .36 * tb) * (1. - .5 * jl); o.rough = mix(o.rough, .8, jl); o.nb += vec3f(0., -.3 * jl, 0.);
+    }
     if (p.z > ${(FARPYR.gate + 4).toFixed(1)}) {
-      // the far complex's forecourt (past the gate): dusty, no sheen to sparkle, drift sand lying in broad tongues
-      // across the flags and banked along the joints
-      o.rough = max(o.rough, .85); o.inlay = 0.;
-      let D = tri(tNoiseA, p, dx, dy, w, .03); let D2 = tri(tNoiseA, p, dx, dy, w, .4);
-      let bank = ss(${(FARPYR.wallN - 14).toFixed(1)}, ${(FARPYR.wallN - 1).toFixed(1)}, p.z) * .45; // banked against the foot of the wall
-      let drift = ss(.5, .72, D.r + (D2.a - .5) * .3 + bank);
-      o.alb = mix(o.alb * vec3f(.8, .78, .76), vec3f(.92, .74, .5) * (.9 + .2 * D2.r), drift * .92); // the bare flags greyer, the sand light and warm o.rough = mix(o.rough, .95, drift);
-      o.nb += triN(p, dx, dy, w, 1.2, false) * .25 * drift; // rippled
+      // the far complex's causeway flags (past the gate): dusty, no sheen to sparkle
+      o.rough = max(o.rough, .7); o.inlay = 0.;
+      o.alb = mix(o.alb, vec3f(.8, .75, .66) * (.85 + .3 * h21(floor(p.xz / vec2f(3.2, 1.6)) + 5.)), .4); // paler, greyer flags than the sand round them
     }
     if (mat == 14u) {
       o.inlay = 0.;

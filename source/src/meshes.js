@@ -384,7 +384,7 @@ function frustum(mb, cx, cz, hx0, hz0, hx1, hz1, y0, y1, top = true) {
 // Egyptian cornice over a block of half sizes (hx, hz) at y: torus roll, flaring cavetto, flat crown
 function cornice(mb, cx, cz, hx, hz, y, s) {
   const m = mb.mat; mb.mat = M.TRIM; const e = mb.eb; mb.eb = 0;
-  mb.box(cx - hx - 0.12 * s, y, cz - hz - 0.12 * s, cx + hx + 0.12 * s, y + 0.3 * s, cz + hz + 0.12 * s, 0.1 * s, false);
+  mb.box(cx - hx - 0.12 * s, y, cz - hz - 0.12 * s, cx + hx + 0.12 * s, y + 0.3 * s, cz + hz + 0.12 * s, 0.1 * s); // (its underside shows where it overhangs)
   frustum(mb, cx, cz, hx + 0.05 * s, hz + 0.05 * s, hx + 0.32 * s, hz + 0.32 * s, y + 0.3 * s, y + 0.9 * s, false);
   frustum(mb, cx, cz, hx + 0.36 * s, hz + 0.36 * s, hx + 0.36 * s, hz + 0.36 * s, y + 0.9 * s, y + 1.1 * s);
   mb.mat = m; mb.eb = e;
@@ -498,7 +498,7 @@ function meshPyramidCased(B, H) {
   mb.mat = M.GOLD; const e = 0.7, b1 = B * c + e - 1.6 * k;
   frustum(mb, 0, 0, B * c + e, B * c + e, b1, b1, yc - 0.3, yc + 1.6, true); // collar
   frustum(mb, 0, 0, b1 - 0.3, b1 - 0.3, 0.05, 0.05, yc + 1.6, H + 0.3);
-  mb.mat = M.TRIM; mb.box(-B - 1.5, -2, -B - 1.5, B + 1.5, 0.4, B + 1.5, 0.1, false); // a low plinth
+  mb.mat = M.TRIM; mb.box(-B - 1.5, -2, -B - 1.5, B + 1.5, 0.4, B + 1.5, 0.1); // a low plinth
   return mb.build();
 }
 // freestanding monumental gate, front and back facing -z/+z: two carved piers and a lintel, slightly battered, a torus
@@ -508,12 +508,12 @@ function meshGate(W = 14, D = 5, H = 22, lod = 0) {
   const mb = new MB(4096), w = W / 2, d = D / 2, ow = W / 6, oh = H * 0.62, hc = H - 3.3, pc = (w + ow) / 2, ph = (w - ow) / 2;
   mb.mat = M.MARBLE; mb.eb = GLYPH; mb.ea = 30; // glyphs ~2.2x their normal size: registers of relief legible from the avenue
   for (const sd of [-1, 1]) frustum(mb, sd * pc, 0, ph, d, ph - 0.15, d - 0.1, 0, hc, false); // piers
-  mb.box(-ow - 0.2, oh, -d + 0.1, ow + 0.2, hc, d - 0.1, 0, false); // lintel over the opening
+  mb.box(-ow - 0.2, oh, -d + 0.1, ow + 0.2, hc, d - 0.1, 0); // lintel over the opening
   mb.eb = mb.ea = 0;
   // torus roll up the four outer corners and across under the cornice
   if (!lod) { mb.mat = M.TRIM; for (const sx of [-1, 1]) for (const sz of [-1, 1]) mb.tube([[sx * w, 0, sz * d, 0.28], [sx * (w - 0.15), hc, sz * (d - 0.1), 0.26]], 10, false); }
   cornice(mb, 0, 0, w - 0.1, d - 0.05, hc, 3); // a deep, flaring cavetto over its torus roll
-  mb.mat = M.TRIM; mb.box(-w - 0.4, -0.4, -d - 0.6, w + 0.4, 0.25, d + 0.6, 0.05, false); // threshold platform
+  mb.mat = M.TRIM; mb.box(-w - 0.4, -0.4, -d - 0.6, w + 0.4, 0.25, d + 0.6, 0.05); // threshold platform
   // winged sun disc on the cavetto, both faces
   mb.mat = M.GOLD;
   for (const sz of [-1, 1]) {
@@ -537,15 +537,15 @@ function meshGate(W = 14, D = 5, H = 22, lod = 0) {
 function meshKitObelisk(s) {
   const mb = new MB(4096), S = (v) => v * s;
   // plinth: a dado of panels between dark posts, a gold torus, a cavetto striped red / blue / ochre, an overhanging slab
-  mb.mat = M.TRIM; mb.box(S(-3.03), 0, S(-3.03), S(3.03), S(1.3), S(3.03), S(0.05), false);
+  mb.mat = M.TRIM; mb.box(S(-3.03), 0, S(-3.03), S(3.03), S(1.3), S(3.03), S(0.05));
   paint(mb, BLACK); for (let i = 0; i <= 6; i++) { const u = S(-3.03 + i * 1.01); for (const sd of [-1, 1]) { mb.box(u - S(0.07), 0, sd * S(3.03) - S(0.06), u + S(0.07), S(1.3), sd * S(3.03) + S(0.06), 0); mb.box(sd * S(3.03) - S(0.06), 0, u - S(0.07), sd * S(3.03) + S(0.06), S(1.3), u + S(0.07), 0); } }
-  mb.mat = M.GOLD; mb.eb = mb.ea = 0; mb.box(S(-3.1), S(1.3), S(-3.1), S(3.1), S(1.48), S(3.1), S(0.06), false);
+  mb.mat = M.GOLD; mb.eb = mb.ea = 0; mb.box(S(-3.1), S(1.3), S(-3.1), S(3.1), S(1.48), S(3.1), S(0.06));
   paint(mb, RED); frustum(mb, 0, 0, S(2.95), S(2.95), S(3.3), S(3.3), S(1.48), S(2.15), false);
   for (let i = 0; i < 24; i++) { // vertical stripes on the cavetto, blue and ochre between the red
     paint(mb, i % 2 ? BLUE : OCHRE); const u = S(-2.9 + (i + 0.5) * 5.8 / 24), hw = S(0.06), y0 = S(1.5), y1 = S(2.12);
     for (const sd of [-1, 1]) { const o0 = sd * S(3.0), o1 = sd * S(3.33); mb.quad(mb.v(u - hw, y0, o0, 0, 0, sd), mb.v(u - hw, y1, o1, 0, 0, sd), mb.v(u + hw, y1, o1, 0, 0, sd), mb.v(u + hw, y0, o0, 0, 0, sd)); mb.quad(mb.v(o0, y0, u - hw, sd, 0, 0), mb.v(o1, y1, u - hw, sd, 0, 0), mb.v(o1, y1, u + hw, sd, 0, 0), mb.v(o0, y0, u + hw, sd, 0, 0)); }
   }
-  unpaint(mb, M.TRIM); mb.box(S(-3.4), S(2.15), S(-3.4), S(3.4), S(2.65), S(3.4), S(0.05), false);
+  unpaint(mb, M.TRIM); mb.box(S(-3.4), S(2.15), S(-3.4), S(3.4), S(2.65), S(3.4), S(0.05));
   // shaft: one white stone, a brick-red ladder strip inlaid down the middle of each face
   paint(mb, WHITE); mb.ea += 20; frustum(mb, 0, 0, S(1.95), S(1.95), S(1.25), S(1.25), S(2.65), S(13.6), false); // (ea + 20: a monolith, no courses)
   const sh = (y) => S(1.95 - 0.7 * (y - 2.65) / 10.95) + S(0.03), hw = S(0.22);
@@ -569,7 +569,7 @@ function meshKitObelisk(s) {
       mb.tri(mb.v(...P, ...nP, 0.85), mb.v(...O, ...nO, 0.9), mb.v(...T, ...nT, 1));
     }
   }
-  mb.mat = M.TRIM; mb.box(S(-1.4), S(13.6), S(-1.4), S(1.4), S(13.85), S(1.4), S(0.03), false); // ledge under the pyramidion
+  mb.mat = M.TRIM; mb.box(S(-1.4), S(13.6), S(-1.4), S(1.4), S(13.85), S(1.4), S(0.03)); // ledge under the pyramidion
   mb.mat = M.GOLD; frustum(mb, 0, 0, S(1.3), S(1.3), S(0.05), S(0.05), S(13.85), S(15.9));
   mb.eb = mb.ea = 0; return mb.build();
 }
@@ -577,10 +577,10 @@ function meshKitObelisk(s) {
 // plinth, carrying its length L of a continuous architrave with a cornice
 function meshColonnadeBay(L, lod) {
   const mb = new MB(2048), r = 1.05, h = 11.5;
-  mb.mat = M.TRIM; mb.box(-1.45, 0, -1.45, 1.45, 0.7, 1.45, lod ? 0 : 0.05, false);
+  mb.mat = M.TRIM; mb.box(-1.45, 0, -1.45, 1.45, 0.7, 1.45, lod ? 0 : 0.05);
   column(mb, 0, 0, 0.7, r, h, lod, [28, 14, 8][lod]);
-  const y = 0.7 + h + 0.45; mb.mat = M.MARBLE; mb.eb = GLYPH; mb.box(-1.0, y, -L / 2, 1.0, y + 1.4, L / 2, 0, false); mb.eb = 0;
-  if (!lod) { mb.mat = M.TRIM; mb.box(-1.15, y + 1.4, -L / 2, 1.15, y + 1.75, L / 2, 0.06, false); mb.box(-1.25, y + 1.75, -L / 2, 1.25, y + 1.95, L / 2, 0.03); }
+  const y = 0.7 + h + 0.45; mb.mat = M.MARBLE; mb.eb = GLYPH; mb.box(-1.0, y, -L / 2, 1.0, y + 1.4, L / 2, 0); mb.eb = 0;
+  if (!lod) { mb.mat = M.TRIM; mb.box(-1.15, y + 1.4, -L / 2, 1.15, y + 1.75, L / 2, 0.06); mb.box(-1.25, y + 1.75, -L / 2, 1.25, y + 1.95, L / 2, 0.03); }
   return mb.build();
 }
 // a prism: the convex outline pts ([x, y], counter-clockwise) extruded along z from z0 to z1, around x = cx
@@ -603,7 +603,7 @@ function ogive(hw, ys, y0 = 0, n = 8, k = 1.6) { // (k: arc radius / hw; the ris
 function fireBowl(mb, x, y, z, r, seg = 12) {
   mb.mat = M.ALLOY; mb.eb = mb.ea = 0;
   mb.lathe([[r * 0.35, y], [r * 0.3, y + r * 0.25], [r * 0.45, y + r * 0.3], [r * 0.85, y + r * 0.55], [r, y + r * 0.8], [r * 0.93, y + r * 0.82], [r * 0.6, y + r * 0.55]], { seg, cx: x, cz: z, crease: 40 });
-  mb.mat = M.CORE; mb.box(x - r * 0.6, y + r * 0.5, z - r * 0.6, x + r * 0.6, y + r * 0.62, z + r * 0.6, 0, false);
+  mb.mat = M.CORE; mb.box(x - r * 0.6, y + r * 0.5, z - r * 0.6, x + r * 0.6, y + r * 0.62, z + r * 0.6, 0);
   mb.mat = M.BARK; for (const a of [0.3, 1.4, 2.6]) mb.tube([[x + cos(a) * r * 0.5, y + r * 0.6, z + sin(a) * r * 0.5, r * 0.07], [x - cos(a) * r * 0.3, y + r * 0.85, z - sin(a) * r * 0.3, r * 0.06]], 5, false);
 }
 // the kit complex's entrance (after KitBash3D BldgLgPyramid_A's BuildingA, ~2.4x, measured off its front and side
@@ -625,7 +625,7 @@ function meshKitEntrance(lod) {
   const disc = (x, y, r, z0, z1) => { const P = [], k = lod ? 10 : 20; for (let i = 0; i < k; i++) { const t = i / k * TAU; P.push([x + r * cos(t), y + r * sin(t)]); } fq(P, z0, z1); };
   // a thin fillet from (x0, y0) to (x1, y1), w wide, on the face at z
   const fillet = (x0, y0, x1, y1, w, z) => { const dx = x1 - x0, dy = y1 - y0, l = hypot(dx, dy), ox = -dy / l * w / 2, oy = dx / l * w / 2; fq([[x0 - ox, y0 - oy], [x1 - ox, y1 - oy], [x1 + ox, y1 + oy], [x0 + ox, y0 + oy]], z - 0.12, z); };
-  unpaint(mb, M.TRIM); mb.box(-36.5, -0.4, -10.5, 36.5, 0.6, 9, 0.05, false); // plinth
+  unpaint(mb, M.TRIM); mb.box(-36.5, -0.4, -10.5, 36.5, 0.6, 9, 0.05); // plinth
   for (const sd of [-1, 1]) {
     const X = (x) => sd * x, P = (pts) => pts.map(([x, y]) => [X(x), y]), xs = (a, b) => [min(X(a), X(b)), max(X(a), X(b))];
     // the tower: outer face battered, inner face plumb
@@ -637,19 +637,19 @@ function meshKitEntrance(lod) {
     // carved band at the foot, the striped red band above it
     mb.mat = M.MARBLE; mb.eb = GLYPH; mb.ea = 12; fq(P([[-14, 0.6], [-14, 5.4], [-31.4, 5.4], [-32.2, 0.6]]), zf - 0.08, zf); mb.eb = mb.ea = 0;
     paint(mb, RED); fq(P([[-14, 8], [-14, 8.7], [-31.0, 8.7], [-31.1, 8]]), zf - 0.06, zf);
-    if (!lod) for (let x = -30.6, i = 0; x < -14.2; x += 0.55, i++) { paint(mb, i & 1 ? BLUE : OCHRE); const [a, b] = xs(x - 0.08, x + 0.08); mb.box(a, 8.05, zf - 0.09, b, 8.65, zf - 0.05, 0, false); }
+    if (!lod) for (let x = -30.6, i = 0; x < -14.2; x += 0.55, i++) { paint(mb, i & 1 ? BLUE : OCHRE); const [a, b] = xs(x - 0.08, x + 0.08); mb.box(a, 8.05, zf - 0.09, b, 8.65, zf - 0.05, 0); }
     // cavetto (striped, a gilt torus under it) and the overhanging slab
-    const [g0, g1] = xs(-27.9, -13.7); mb.mat = M.GOLD; mb.eb = mb.ea = 0; mb.box(g0, 28.75, zf - 0.35, g1, 29.1, 8.3, 0.04, false);
+    const [g0, g1] = xs(-27.9, -13.7); mb.mat = M.GOLD; mb.eb = mb.ea = 0; mb.box(g0, 28.75, zf - 0.35, g1, 29.1, 8.3, 0.04);
     paint(mb, RED); frustum(mb, X(-20.8), 0.6, 7.0, 7.65, 7.6, 8.25, 29.1, 30.6, false);
-    if (!lod) for (let x = -27.9, i = 0; x < -13.8; x += 0.5, i++) { paint(mb, i & 1 ? BLUE : OCHRE); const [a, b] = xs(x - 0.07, x + 0.07); mb.box(a, 29.2, zf - 0.68, b, 30.5, zf - 0.6, 0, false); }
-    const [s0, s1] = xs(-28.9, -12.8); unpaint(mb, M.TRIM); mb.box(s0, 30.6, zf - 1.1, s1, 31.5, 9.2, 0.05, false);
+    if (!lod) for (let x = -27.9, i = 0; x < -13.8; x += 0.5, i++) { paint(mb, i & 1 ? BLUE : OCHRE); const [a, b] = xs(x - 0.07, x + 0.07); mb.box(a, 29.2, zf - 0.68, b, 30.5, zf - 0.6, 0); }
+    const [s0, s1] = xs(-28.9, -12.8); unpaint(mb, M.TRIM); mb.box(s0, 30.6, zf - 1.1, s1, 31.5, 9.2, 0.05);
     fireBowl(mb, X(-20.8), 31.5, 0.6, 2.8, lod ? 8 : 14);
     // plain walls between the towers and the arch, with ochre cartouche slots; a taller block behind
-    paint(mb, WHITE); let [a, b] = xs(-14, -6); mb.box(a, 0.6, -5, b, 27, 8, 0, false); [a, b] = xs(-10.5, -6); mb.box(a, 0.6, 4, b, 30, 10, 0, false);
-    unpaint(mb, M.TRIM); [a, b] = xs(-10.9, -9.9); for (const [y0, y1] of [[15, 20.5], [9.8, 12.6]]) mb.box(a, y0, -5.3, b, y1, -4.95, 0.45, false); // pale rounded slots
-    paint(mb, RED); [a, b] = xs(-14, -8.4); mb.box(a, 8, -5.08, b, 8.7, -4.98, 0, false);
+    paint(mb, WHITE); let [a, b] = xs(-14, -6); mb.box(a, 0.6, -5, b, 27, 8, 0); [a, b] = xs(-10.5, -6); mb.box(a, 0.6, 4, b, 30, 10, 0);
+    unpaint(mb, M.TRIM); [a, b] = xs(-10.9, -9.9); for (const [y0, y1] of [[15, 20.5], [9.8, 12.6]]) mb.box(a, y0, -5.3, b, y1, -4.95, 0.45); // pale rounded slots
+    paint(mb, RED); [a, b] = xs(-14, -8.4); mb.box(a, 8, -5.08, b, 8.7, -4.98, 0);
     // the hall's side blocks behind the towers
-    paint(mb, WHITE); [a, b] = xs(-19.5, -10.4); mb.box(a, 0.6, 8, b, 24, 40, 0, false);
+    paint(mb, WHITE); [a, b] = xs(-19.5, -10.4); mb.box(a, 0.6, 8, b, 24, 40, 0);
   }
   // the arch: a proud sandstone frame, a white panel within, nested door frames, the pointed doorway
   mb.mat = M.MARBLE; mb.eb = 0; mb.ea = WEATHERED; fq(ogive(8.5, 33.8, 0.6, n, 1.955), -8.6, -6.6); mb.ea = 0;
@@ -664,7 +664,7 @@ function meshKitEntrance(lod) {
   fq([[-6.9, 33.2], [-2.4, 33.6], [-2.4, 34.6], [-6.9, 35.0]], -8.85, -8.68); fq([[2.4, 33.6], [6.9, 33.2], [6.9, 35.0], [2.4, 34.6]], -8.85, -8.68);
   mb.mat = M.GOLD; disc(0, 36.5, 0.9, -8.95, -8.68);
   for (const [x, y, an] of [[-2.1, 38.1, -0.8], [2.1, 38.1, 0.8], [0, 34.0, PI]]) { const c = cos(an), s2 = sin(an), T = (u, v) => [x + u * c + v * s2, y - u * s2 + v * c]; fq([T(-0.45, -0.35), T(0.45, -0.35), T(0, 0.75)], -8.9, -8.68); }
-  mb.mat = M.MARBLE; mb.ea = WEATHERED; mb.box(-0.5, 48, -8.2, 0.5, 49.7, -7.2, 0, false); disc(0, 50.9, 1.3, -8.15, -7.25); mb.ea = 0;
+  mb.mat = M.MARBLE; mb.ea = WEATHERED; mb.box(-0.5, 48, -8.2, 0.5, 49.7, -7.2, 0); disc(0, 50.9, 1.3, -8.15, -7.25); mb.ea = 0;
   // the hall roof: a boat-shaped shell lofted from the arch back over 62 m, its top curving down from the head of
   // the arch, its keel line from 31 m at the front to the ground at the back; red bands along the sides' tops, the
   // crown in fine transverse red / ochre / blue stripes either side of a plain ridge
@@ -678,12 +678,12 @@ function meshKitEntrance(lod) {
   let A = prof(0);
   for (let i = 0; i < ns; i++) {
     const B = prof((i + 1) / ns), za = z0 + L * i / ns, zb = z0 + L * (i + 1) / ns, m = A.length;
-    for (let j = 0; j < m - 1; j++) {
-      const p0 = [A[j][0], A[j][1], za], p1 = [A[j + 1][0], A[j + 1][1], za], q1 = [B[j + 1][0], B[j + 1][1], zb], q0 = [B[j][0], B[j][1], zb];
+    for (let j = 0; j < m; j++) { // (j = m - 1 closes the underside)
+      const k1 = (j + 1) % m, p0 = [A[j][0], A[j][1], za], p1 = [A[k1][0], A[k1][1], za], q1 = [B[k1][0], B[k1][1], zb], q0 = [B[j][0], B[j][1], zb];
       const e1 = [p1[0] - p0[0], p1[1] - p0[1], 0], e2 = [q0[0] - p0[0], q0[1] - p0[1], q0[2] - p0[2]];
       let nn = vnorm([e1[1] * e2[2] - e1[2] * e2[1], e1[2] * e2[0] - e1[0] * e2[2], e1[0] * e2[1] - e1[1] * e2[0]]);
       if (nn[0] * e1[1] - nn[1] * e1[0] < 0) nn = nn.map((v) => -v); // outward: (ey, -ex) for the counter-clockwise outline
-      const side = j === 0 || j === m - 2, band = j === 1 || j === m - 3, ridge = abs(j - (m - 2) / 2) < 1.6;
+      const side = j === 0 || j >= m - 2, band = j === 1 || j === m - 3, ridge = abs(j - (m - 2) / 2) < 1.6;
       // sides and ridge plain sandstone (as on the kit), a red band along the sides' tops, the crown in fine red and
       // blue pinstripes on the pale sandstone ground
       const pin = [-1, RED, -1, -1, BLUE, -1][i % 6];
@@ -700,40 +700,40 @@ function meshKitEntrance(lod) {
 function meshKitTerrace(lod) {
   const mb = new MB(1 << 14), A = 45, V = 55, y1 = 12, U0 = -40, U1 = 20, y2 = 22;
   const stripes = (x0, x1, z0, z1, y, h, o) => { // a cornice band of vertical stripes, red with blue / ochre, overhanging o
-    paint(mb, RED); mb.box(x0 - o, y, z0 - o, x1 + o, y + h, z1 + o, 0, false);
+    paint(mb, RED); mb.box(x0 - o, y, z0 - o, x1 + o, y + h, z1 + o, 0);
     if (lod) return; const n = (len) => max(2, round(len / 1.2));
     for (const [ax, a0, a1, f] of [[0, x0, x1, z1 + o], [0, x0, x1, z0 - o], [1, z0, z1, x1 + o], [1, z0, z1, x0 - o]]) {
       const k = n(a1 - a0); for (let i = 0; i < k; i++) { if (i % 2) continue; paint(mb, (i >> 1) % 2 ? BLUE : OCHRE); const u = a0 + (i + 0.5) * (a1 - a0) / k;
-        ax ? mb.box(f - 0.03, y + 0.1, u - 0.22, f + 0.03, y + h - 0.1, u + 0.22, 0, false) : mb.box(u - 0.22, y + 0.1, f - 0.03, u + 0.22, y + h - 0.1, f + 0.03, 0, false); }
+        ax ? mb.box(f - 0.03, y + 0.1, u - 0.22, f + 0.03, y + h - 0.1, u + 0.22, 0) : mb.box(u - 0.22, y + 0.1, f - 0.03, u + 0.22, y + h - 0.1, f + 0.03, 0); }
     }
   };
   // lower storey and its roof pattern
-  paint(mb, WHITE); mb.box(-A, 0, -V, A, y1, V, 0, false);
-  stripes(-A, A, -V, V, y1 - 1.4, 1.4, 0.4); unpaint(mb, M.TRIM); mb.box(-A - 0.8, y1, -V - 0.8, A + 0.8, y1 + 0.5, V + 0.8, 0.06, false);
-  mb.mat = M.GOLD; for (const [a, b, c, d] of [[U1 + 3, A - 4, -V + 4, -V + 4.6], [U1 + 3, A - 4, V - 4.6, V - 4], [A - 4.6, A - 4, -V + 4, V - 4], [U1 + 3, U1 + 3.6, -V + 4, V - 4], [U1 + 3, A - 4, -0.3, 0.3]]) mb.box(a, y1 + 0.5, c, b, y1 + 0.56, d, 0, false);
+  paint(mb, WHITE); mb.box(-A, 0, -V, A, y1, V, 0);
+  stripes(-A, A, -V, V, y1 - 1.4, 1.4, 0.4); unpaint(mb, M.TRIM); mb.box(-A - 0.8, y1, -V - 0.8, A + 0.8, y1 + 0.5, V + 0.8, 0.06);
+  mb.mat = M.GOLD; for (const [a, b, c, d] of [[U1 + 3, A - 4, -V + 4, -V + 4.6], [U1 + 3, A - 4, V - 4.6, V - 4], [A - 4.6, A - 4, -V + 4, V - 4], [U1 + 3, U1 + 3.6, -V + 4, V - 4], [U1 + 3, A - 4, -0.3, 0.3]]) mb.box(a, y1 + 0.5, c, b, y1 + 0.56, d, 0);
   // gate pavilions on the front, each a dark doorway in a red frame under its own cornice
   for (const sd of [-1, 1]) {
-    const vc = sd * 40; paint(mb, WHITE); mb.box(A, 0, vc - 7, A + 8, 14, vc + 7, 0, false); stripes(A, A + 8, vc - 7, vc + 7, 12.6, 1.4, 0.3);
-    unpaint(mb, M.TRIM); mb.box(A - 0.3, 14, vc - 7.6, A + 8.6, 14.5, vc + 7.6, 0.05, false);
-    paint(mb, RED); mb.box(A + 8, 0, vc - 3, A + 8.15, 9.5, vc + 3, 0, false); paint(mb, BLACK); mb.box(A + 8.1, 0, vc - 2.2, A + 8.25, 8.7, vc + 2.2, 0, false);
+    const vc = sd * 40; paint(mb, WHITE); mb.box(A, 0, vc - 7, A + 8, 14, vc + 7, 0); stripes(A, A + 8, vc - 7, vc + 7, 12.6, 1.4, 0.3);
+    unpaint(mb, M.TRIM); mb.box(A - 0.3, 14, vc - 7.6, A + 8.6, 14.5, vc + 7.6, 0.05);
+    paint(mb, RED); mb.box(A + 8, 0, vc - 3, A + 8.15, 9.5, vc + 3, 0); paint(mb, BLACK); mb.box(A + 8.1, 0, vc - 2.2, A + 8.25, 8.7, vc + 2.2, 0);
   }
   // two straight stairs up the front to the terrace, with parapets
   for (const sd of [-1, 1]) {
     const vc = sd * 14, w = 3.2, run = 22, n = lod ? 8 : 25; mb.mat = M.STEP; mb.eb = mb.ea = 0;
-    for (let i = 0; i < n; i++) mb.box(A, 0, vc - w, A + run * (1 - i / n), (y1 + 0.5) * (i + 1) / n, vc + w, 0, false); // a flight of treads
+    for (let i = 0; i < n; i++) mb.box(A, 0, vc - w, A + run * (1 - i / n), (y1 + 0.5) * (i + 1) / n, vc + w, 0); // a flight of treads
     unpaint(mb, M.TRIM); for (const pz of [vc - w - 0.6, vc + w]) extrude(mb, [[A + run + 0.5, 0], [A + run + 0.5, 1.2], [A, y1 + 1.6], [A, 0]].map(([x, y]) => [x, y]), 0, pz, pz + 0.6); // parapets (x as given)
   }
   // upper tier: false-door niches between pilasters, a striped cornice
-  paint(mb, WHITE); mb.box(U0, y1 + 0.5, -V + 10, U1, y2, V - 10, 0, false);
+  paint(mb, WHITE); mb.box(U0, y1 + 0.5, -V + 10, U1, y2, V - 10, 0);
   for (let v = -V + 15; v <= V - 15; v += 6.5) {
-    unpaint(mb, M.TRIM); mb.box(U1, y1 + 2, v - 2, U1 + 0.35, y2 - 2.2, v + 2, 0, false);
-    paint(mb, OCHRE); mb.box(U1 + 0.3, y1 + 2.6, v - 1.4, U1 + 0.45, y2 - 2.8, v + 1.4, 0, false);
-    paint(mb, BLACK); mb.box(U1 + 0.4, y1 + 2.6, v - 0.6, U1 + 0.5, y2 - 4.5, v + 0.6, 0, false);
+    unpaint(mb, M.TRIM); mb.box(U1, y1 + 2, v - 2, U1 + 0.35, y2 - 2.2, v + 2, 0);
+    paint(mb, OCHRE); mb.box(U1 + 0.3, y1 + 2.6, v - 1.4, U1 + 0.45, y2 - 2.8, v + 1.4, 0);
+    paint(mb, BLACK); mb.box(U1 + 0.4, y1 + 2.6, v - 0.6, U1 + 0.5, y2 - 4.5, v + 0.6, 0);
   }
-  stripes(U0, U1, -V + 10, V - 10, y2 - 1.5, 1.5, 0.35); unpaint(mb, M.TRIM); mb.box(U0 - 0.7, y2, -V + 9.3, U1 + 0.7, y2 + 0.5, V - 9.3, 0.05, false);
+  stripes(U0, U1, -V + 10, V - 10, y2 - 1.5, 1.5, 0.35); unpaint(mb, M.TRIM); mb.box(U0 - 0.7, y2, -V + 9.3, U1 + 0.7, y2 + 0.5, V - 9.3, 0.05);
   // rear shrine and its slanted flanking slabs
-  paint(mb, WHITE); mb.box(-30, y2, -7, -24, y2 + 17, 7, 0, false); stripes(-30, -24, -7, 7, y2 + 15.6, 1.4, 0.3);
-  mb.mat = M.MARBLE; mb.eb = GLYPH; mb.ea = 12; mb.box(-24.1, y2 + 1, -2.5, -23.9, y2 + 14, 2.5, 0, false); mb.eb = mb.ea = 0;
+  paint(mb, WHITE); mb.box(-30, y2, -7, -24, y2 + 17, 7, 0); stripes(-30, -24, -7, 7, y2 + 15.6, 1.4, 0.3);
+  mb.mat = M.MARBLE; mb.eb = GLYPH; mb.ea = 12; mb.box(-24.1, y2 + 1, -2.5, -23.9, y2 + 14, 2.5, 0); mb.eb = mb.ea = 0;
   // slanting slabs either side, leaning in toward the shrine (a slab's face as a sheared box)
   for (const sd of [-1, 1]) {
     const zb = sd * 13, zt = sd * 8.5, P = [[-31, zb - 1.2], [-23, zb - 1.2], [-23, zb + 1.2], [-31, zb + 1.2]];
@@ -748,12 +748,12 @@ function meshKitTerrace(lod) {
 // pennant hanging from a crossbar at the top
 function meshKitBanner() {
   const mb = new MB(512);
-  mb.mat = M.TRIM; mb.box(-0.9, 0, -0.9, 0.9, 1.1, 0.9, 0.05, false);
+  mb.mat = M.TRIM; mb.box(-0.9, 0, -0.9, 0.9, 1.1, 0.9, 0.05);
   mb.mat = M.BARK; mb.tube([[0, 1, 0, 0.2], [0, 18, 0, 0.15]], 6, false); mb.tube([[0, 17.4, -1.1, 0.08], [0, 17.4, 1.1, 0.08]], 4, false);
   mb.mat = M.ALLOY; frustum(mb, 0, 0, 0.25, 0.25, 0.02, 0.02, 18, 19.3);
   paint(mb, RED); const P = [[0.25, 17.3, -0.9], [0.25, 17.3, 0.9], [0.25, 7.5, 0.6], [0.25, 6.6, 0], [0.25, 7.5, -0.6]];
   mb.poly(P, [1, 0, 0], 1); mb.poly(P.map((p) => [0.18, p[1], p[2]]).reverse(), [-1, 0, 0], 1);
-  paint(mb, OCHRE); for (const y of [15.5, 12, 9]) { mb.box(0.26, y, -0.7, 0.28, y + 0.35, 0.7, 0, false); mb.box(0.15, y, -0.7, 0.17, y + 0.35, 0.7, 0, false); }
+  paint(mb, OCHRE); for (const y of [15.5, 12, 9]) { mb.box(0.26, y, -0.7, 0.28, y + 0.35, 0.7, 0); mb.box(0.15, y, -0.7, 0.17, y + 0.35, 0.7, 0); }
   mb.eb = mb.ea = 0; return mb.build();
 }
 // a standing torch (kit StandingTochA, ~2.4x): a slender red pillar with painted bands flaring to a bowl, unlit
@@ -761,7 +761,7 @@ function meshKitTorch() {
   const mb = new MB(512); paint(mb, RED);
   mb.lathe([[0.45, 0], [0.4, 0.3], [0.32, 0.4], [0.3, 2.8], [0.42, 3.2], [0.7, 3.55], [0.62, 3.6], [0.3, 3.45]], { seg: 10, cx: 0, cz: 0, crease: 40 });
   paint(mb, OCHRE); for (const y of [0.5, 1.4, 2.4]) mb.lathe([[0.34, y], [0.34, y + 0.12]], { seg: 10, cx: 0, cz: 0, crease: 40 });
-  mb.mat = M.CORE; mb.eb = mb.ea = 0; mb.box(-0.4, 3.35, -0.4, 0.4, 3.45, 0.4, 0, false);
+  mb.mat = M.CORE; mb.eb = mb.ea = 0; mb.box(-0.4, 3.35, -0.4, 0.4, 3.45, 0.4, 0);
   return mb.build();
 }
 // a group of clay pots (kit ClayPots, ~2.4x): a big white jar with a blue lotus band, small dark jugs round it
@@ -773,6 +773,8 @@ function meshKitPots() {
   jar(0, 0, 1.4, 3.2, WHITE, BLUE); jar(1.9, 0.6, 0.6, 1.4, BLACK, -1); jar(-1.6, 1.2, 0.7, 1.5, BLUE, OCHRE); jar(0.8, -1.8, 0.55, 1.2, BLACK, RED);
   mb.eb = mb.ea = 0; return mb.build();
 }
+// one of the stone beams lying in a fan round the post at the end of the kit entrance's causeway: 9 m long, along z
+function meshKitBeam() { const mb = new MB(64); mb.mat = M.MARBLE; mb.ea = WEATHERED; mb.box(-0.55, -0.3, -4.5, 0.55, 0.45, 4.5, 0.06, true); mb.ea = 0; return mb.build(); }
 // enclosure wall of half sizes (X, Z) around the origin, h high, with merlons, a gateway gap of half width g in the
 // -z side (toward the city)
 function meshEnclosure(X, Z, h, g, lod, jog = null) { // jog: [z0, z1] left open on the +x side (the terrace building closes it)
@@ -782,7 +784,7 @@ function meshEnclosure(X, Z, h, g, lod, jog = null) { // jog: [z0, z1] left open
   const mb = new MB(1 << 15), t = 1.6, hb = h * 0.55, hn = h - 0.42 * (h - hb), run = (x0, z0, x1, z1) => {
     const L = hypot(x1 - x0, z1 - z0), cx = (x0 + x1) / 2, cz = (z0 + z1) / 2, alongX = abs(x1 - x0) > abs(z1 - z0);
     // a box spanning u0..u1 along the run, half depth d (offset o across it), y0..y1
-    const B = (u0, u1, d, y0, y1, bev = 0, o = 0) => alongX ? mb.box(cx + u0, y0, cz + o - d, cx + u1, y1, cz + o + d, bev, false) : mb.box(cx + o - d, y0, cz + u0, cx + o + d, y1, cz + u1, bev, false);
+    const B = (u0, u1, d, y0, y1, bev = 0, o = 0) => alongX ? mb.box(cx + u0, y0, cz + o - d, cx + u1, y1, cz + o + d, bev) : mb.box(cx + o - d, y0, cz + u0, cx + o + d, y1, cz + u1, bev);
     // a block battered along the run: half lengths a0 at y0 to a1 at y1, half depth d
     const T = (u, a0, a1, d, y0, y1) => alongX ? frustum(mb, cx + u, cz, a0, d, a1, d, y0, y1, true) : frustum(mb, cx, cz + u, d, a0, d, a1, y0, y1, true);
     mb.mat = M.MARBLE; mb.ea = WEATHERED; B(-L / 2, L / 2, t + 0.15, 0, 0.7); mb.ea = 0; // footing course
@@ -811,13 +813,28 @@ function meshEnclosure(X, Z, h, g, lod, jog = null) { // jog: [z0, z1] left open
 }
 // the river end: a stone quay with a stair of steps down to the water (-z), and the paved avenue and forecourt behind it
 function meshFarQuay(F) {
-  const mb = new MB(1 << 13), y = F.y + 0.12, zq = F.quay, za = F.aveA;
-  mb.mat = M.QUAY; mb.ea = 255; mb.box(-46, -4, zq, 46, y, za + 48, 0.1, false); mb.ea = 0; // quay block (waterline from sea level), carried inland past the natural shore
-  mb.mat = M.TRIM; mb.box(-46.3, y - 0.05, zq - 0.3, 46.3, y + 0.35, zq + 0.9, 0.08, false); // coping along the water
+  const mb = new MB(1 << 13), y = F.y + 0.12, zq = F.quay, za = F.aveA, zi = za + 48;
+  // quay block (waterline from sea level), carried inland past the natural shore; its top a little below the flags
+  // laid on it, so no two surfaces share a plane
+  mb.mat = M.QUAY; mb.ea = 255; mb.box(-46, -4, zq, 46, y - 0.08, zi, 0.1); mb.ea = 0;
+  mb.mat = M.TRIM; mb.box(-46.3, y - 0.05, zq - 0.3, 46.3, y + 0.35, zq + 0.9, 0.08); // coping along the water
   for (let x = -42; x <= 42; x += 7) if (abs(x) > 20) mb.lathe([[0.32, y + 0.3], [0.3, y + 0.9], [0.4, y + 1.05], [0.25, y + 1.2], [0, y + 1.25]], { seg: 10, cx: x, cz: zq + 0.5 }); // bollards
-  mb.mat = M.STEP; for (let i = 0, n = round(y / 0.25); i < n; i++) { const yy = y - (i + 1) * 0.25, z1 = zq - i * 0.4; mb.box(-18, -2, z1 - 0.4, 18, yy + 0.25, z1, 0, false); }
-  mb.mat = M.PAVE; mb.box(-20, F.y - 1, za, 20, y, F.gate - 4, 0.05, false); // avenue
-  mb.box(-70, F.y - 1, F.gate - 6, 70, y, F.wallN + 4, 0.05, false); // the gate's square, the temple forecourt, up to the enclosure
-  mb.box(-7, F.y - 1, F.wallN, 7, y, F.pyr - F.B, 0, false); // path through the gateway to the pyramid
+  mb.mat = M.STEP; for (let i = 0, n = round(y / 0.25); i < n; i++) { const yy = y - (i + 1) * 0.25, z1 = zq - i * 0.4; mb.box(-18, -2, z1 - 0.4, 18, yy + 0.25, z1, 0); }
+  // flags (blocks, as in the city): the quay's deck either side of the avenue, the avenue up to the gate, a small
+  // square round the gate; past the gate the ground is sand
+  mb.mat = M.PAVE;
+  mb.box(-46, y - 0.3, zq + 0.9, 46, y, za, 0.05);
+  mb.box(-46, y - 0.3, za, -20, y, zi, 0.05); mb.box(20, y - 0.3, za, 46, y, zi, 0.05);
+  mb.box(-20, F.y - 1, za, 20, y, F.gate - 6, 0.05); // avenue
+  mb.box(-24, F.y - 1, F.gate - 6, 24, y, F.gate + 6, 0.05); // round the gate
+  // the kit entrance's causeway (BuildingA's forecourt): from the entrance's plinth it tapers over 67 m to a post,
+  // sandstone flags with a paler strip of slabs down its middle, a step proud of the sand
+  const z0 = F.wallN - 10.5, z1 = z0 - 67, up = [0, 1, 0], yc = F.y + 0.25;
+  const slab = (w0, w1, ya, za0, za1) => { mb.poly([[-w0, ya, za0], [w0, ya, za0], [w1, ya, za1], [-w1, ya, za1]], up, 1);
+    for (const sd of [-1, 1]) { const n = vnorm([sd * (za0 - za1), 0, sd * (w0 - w1)]); mb.quad(mb.v(sd * w0, F.y - 0.6, za0, ...n), mb.v(sd * w0, ya, za0, ...n), mb.v(sd * w1, ya, za1, ...n), mb.v(sd * w1, F.y - 0.6, za1, ...n)); }
+    mb.quad(mb.v(-w1, F.y - 0.6, za1, 0, 0, -1), mb.v(-w1, ya, za1, 0, 0, -1), mb.v(w1, ya, za1, 0, 0, -1), mb.v(w1, F.y - 0.6, za1, 0, 0, -1)); };
+  mb.mat = M.PAVE; slab(15.5, 5.5, yc, z0, z1);
+  paint(mb, WHITE); mb.poly([[-2.6, yc + 0.03, z0], [2.6, yc + 0.03, z0], [2.6, yc + 0.03, z1 + 3], [-2.6, yc + 0.03, z1 + 3]], up, 1); mb.eb = mb.ea = 0; // the paler middle strip (limestone)
+  mb.mat = M.TRIM; mb.lathe([[3.2, F.y - 0.4], [3.2, yc + 0.1], [2.9, yc + 0.3], [0, yc + 0.3]], { seg: 20, cx: 0, cz: z1 - 1 }); // round base of the post
   return mb.build();
 }

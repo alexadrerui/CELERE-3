@@ -454,6 +454,11 @@ function populate({ type, put, paint, MAP, balRun, gH, hard }) {
     const tPots = type([meshKitPots()], K.SOLID, 250, 1e9, 1e9);
     for (const [u, v, a] of [[30, -30, 0.4], [34, 22, 2.1], [-4, -45, 1.2]]) put(tPots, tx + u, F.y + 12.5, tz + v, 1, qYaw(a));
     put(tPots, tx + 58, F.y, tz - 49, 1, qYaw(2.6));
+    // the post at the end of the entrance's causeway (a slim obelisk), stone beams lying in a fan beyond it
+    const zp = F.wallN - 10.5 - 68;
+    put(type([meshObelisk(22, 1.1, true)], K.SOLID, 600, 1e9, 1e9), 0, F.y + 0.55, zp);
+    const tBeam = type([meshKitBeam()], K.SOLID, 400, 1e9, 1e9);
+    for (const f of [-0.62, 0, 0.62]) put(tBeam, sin(f) * 9.5, F.y + 0.05, zp - cos(f) * 9.5, 1, qYaw(PI - f));
     put(type([meshPyramidCased(F.B, F.H)], K.SOLID), 0, F.y, F.pyr);
     const tOb = type([meshKitObelisk(2.4)], K.SOLID, 1e9, 1e9, 1e9);
     for (const sx of [-1, 1]) for (const z of [F.wallN - 8.5, F.wallS + 8.5]) put(tOb, sx * (F.wallX + 8.5), F.y, z); // plinths against the wall corners
