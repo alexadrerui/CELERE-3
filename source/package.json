@@ -6,7 +6,9 @@
   "scripts": {
     "build": "node build.mjs",
     "build:readable": "node build.mjs --readable",
-    "build:dev": "node build.mjs --dev"
+    "build:dev": "node build.mjs --dev",
+    "kitlab": "node tools/kitlab/kitlab.mjs --serve",
+    "kitlab:build": "node tools/kitlab/kitlab.mjs"
   },
   "devDependencies": {
     "esbuild": "^0.28.2"

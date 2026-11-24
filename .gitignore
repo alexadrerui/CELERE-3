@@ -2,3 +2,5 @@ node_modules/
 dev.html
 # renders and measurements of the licensed KitBash3D kit: local reference only, never published
 reference/
+# Kit Lab's page is generated (npm run kitlab)
+source/tools/kitlab/kitlab.html

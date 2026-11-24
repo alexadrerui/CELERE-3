@@ -438,30 +438,27 @@ function populate({ type, put, paint, MAP, balRun, gH, hard }) {
     const bay = 9, tBay = type([meshColonnadeBay(bay, 0), meshColonnadeBay(bay, 1), meshColonnadeBay(bay, 2)], K.SOLID, 260, 900, 1e9);
     for (let z = F.aveA + 8; z + bay / 2 <= F.aveB; z += bay) for (const sd of [-1, 1]) put(tBay, sd * 16, F.y + 0.1, z);
     put(type([meshGate(16, 6, 26, 0), meshGate(16, 6, 26, 1)], K.SOLID, 400, 1e9, 1e9), 0, F.y + 0.1, F.gate);
-    // the kit's own buildings (BldgLgPyramid_A, ~2.4x): the entrance in the gap of the front wall, the terrace building
-    // on the east side where the wall jogs out round it, banners along the inner face, torches and pots by the terrace
-    put(type([meshKitEntrance(0), meshKitEntrance(1)], K.SOLID, 500, 1e9, 1e9), 0, F.y, F.wallN);
-    const tx = F.wallX + 30, tz = F.pyr - 30;
-    put(type([meshKitTerrace(0), meshKitTerrace(1)], K.SOLID, 500, 1e9, 1e9), tx, F.y, tz);
-    const jog = [tz - 55 - F.pyr, tz + 55 - F.pyr];
-    put(type([meshEnclosure(F.wallX, (F.wallS - F.wallN) / 2, 13.5, 8, 0, jog), meshEnclosure(F.wallX, (F.wallS - F.wallN) / 2, 13.5, 8, 1, jog)], K.SOLID, 600, 1e9, 1e9), 0, F.y, F.pyr);
-    const tBan = type([meshKitBanner()], K.SOLID, 600, 1e9, 1e9);
-    for (const x of [-100, -70, -40, 40, 70]) put(tBan, x, F.y, F.wallN + 6, 1, north);
-    for (const z of [tz - 70, tz + 70]) put(tBan, tx + 60, F.y, z, 1, qYaw(0));
+    // the kit's complex (BldgLgPyramid_A, ~2.4x), laid out on the kit's own plan (KP, meshes.js; checked in the Kit
+    // Lab), around the pyramid's centre: the entrance in the front wall's gap with its causeway, the terrace building
+    // on the -x side where the wall bays out round it, banners and torches in the court, pots on the terrace
+    const P0 = F.pyr, [tx, tz] = KP.terrace;
+    put(type([meshPyramidCased(107.75, 99.9)], K.SOLID), 0, F.y, P0);
+    put(type([meshEnclosure(11.5, 0), meshEnclosure(11.5, 1)], K.SOLID, 600, 1e9, 1e9), 0, F.y, P0);
+    put(type([meshKitEntrance(0), meshKitEntrance(1)], K.SOLID, 500, 1e9, 1e9), 0, F.y, P0 + KP.entranceZ);
+    put(type([meshKitCauseway(KP.entranceZ - 10.5)], K.SOLID, 600, 1e9, 1e9), 0, F.y, P0);
+    put(type([meshKitTerrace(0), meshKitTerrace(1)], K.SOLID, 500, 1e9, 1e9), tx, F.y, P0 + tz, 1, qYaw(PI));
+    const tOb = type([meshKitObelisk(2.4)], K.SOLID, 1e9, 1e9, 1e9); for (const [x, z] of KP.obelisks) put(tOb, x, F.y, P0 + z);
+    const tBan = type([meshKitBanner()], K.SOLID, 600, 1e9, 1e9); for (const [x, z] of KP.banners) put(tBan, x, F.y, P0 + z);
     const tTorch = type([meshKitTorch()], K.SOLID, 300, 1e9, 1e9);
-    for (const sd of [-1, 1]) for (const o of [-4.5, 4.5]) put(tTorch, tx + 45 + 9.5, F.y, tz + sd * 40 + o);
-    for (const o of [-4.2, 4.2]) put(tTorch, o, F.y, F.wallN - 10.5); // flanking the doorway
-    const tPots = type([meshKitPots()], K.SOLID, 250, 1e9, 1e9);
-    for (const [u, v, a] of [[30, -30, 0.4], [34, 22, 2.1], [-4, -45, 1.2]]) put(tPots, tx + u, F.y + 12.5, tz + v, 1, qYaw(a));
-    put(tPots, tx + 58, F.y, tz - 49, 1, qYaw(2.6));
-    // the post at the end of the entrance's causeway (a slim obelisk), stone beams lying in a fan beyond it
-    const zp = F.wallN - 10.5 - 68;
+    for (const [x, z] of KP.torches) put(tTorch, x, F.y, P0 + z);
+    for (const [x, z] of KP.torchesHigh) put(tTorch, x, F.y + 17.3, P0 + z);
+    for (const o of [-4.7, 4.7]) put(tTorch, o, F.y, P0 + KP.entranceZ - 6.5); // flanking the doorway
+    const tPots = type([meshKitPots()], K.SOLID, 250, 1e9, 1e9); for (const [x, z, a] of KP.pots) put(tPots, x, F.y + 17.3, P0 + z, 1, qYaw(a));
+    // the post at the end of the causeway (a slim obelisk), stone beams lying in a fan beyond it
+    const zp = P0 + KP.entranceZ - 10.5 - 68;
     put(type([meshObelisk(22, 1.1, true)], K.SOLID, 600, 1e9, 1e9), 0, F.y + 0.55, zp);
     const tBeam = type([meshKitBeam()], K.SOLID, 400, 1e9, 1e9);
     for (const f of [-0.62, 0, 0.62]) put(tBeam, sin(f) * 9.5, F.y + 0.05, zp - cos(f) * 9.5, 1, qYaw(PI - f));
-    put(type([meshPyramidCased(F.B, F.H)], K.SOLID), 0, F.y, F.pyr);
-    const tOb = type([meshKitObelisk(2.4)], K.SOLID, 1e9, 1e9, 1e9);
-    for (const sx of [-1, 1]) for (const z of [F.wallN - 8.5, F.wallS + 8.5]) put(tOb, sx * (F.wallX + 8.5), F.y, z); // plinths against the wall corners
     for (const x of [-34, -26, 27, 36]) put(tCraftIdle, x, 0.02, F.quay - 4.5, 1, qYaw(PI / 2 + rr(-0.08, 0.08)), rgb(1, 1, 1, rng())); // moored at the quay
     // palms along the bank either side of the quay and in rows behind the colonnades
     for (const sd of [-1, 1]) {
