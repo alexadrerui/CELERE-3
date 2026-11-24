@@ -411,6 +411,18 @@ const FLOWERS = array<vec3f, 8>(vec3f(.52, .08, .24), vec3f(.8, .36, .5), vec3f(
       o.alb *= (select(.86, .92, lime) + select(.24, .12, lime) * bl) * (1. - .45 * line(fract(cy) * chh, .07, fw) - select(.2, .35, lime) * line(ed, select(.025, .06, lime), fw));
       if (lime) { o.alb = mix(o.alb, o.alb * vec3f(.92, .8, .72), line(ed, .06, fw)); } // fine reddish joints
       o.rough = .8; o.nb += vec3f(0., -.35 * sat(1. - fract(cy) * 4.) * sat(1. - fw / .5), 0.);
+      if (lime) {
+        // ea > .5 (the far complex's pyramid): polished black granite in the same great blocks. Near-black, a fine
+        // speckle of pale feldspar and grey quartz, each block a shade apart, hairline joints, a mirror polish
+        // dulled a little by blown sand toward the foot
+        let G = tri(tNoiseA, p, dx, dy, w, 4.5); let G2 = tri(tNoiseA, p, dx, dy, w, 1.3);
+        let speck = ss(.72, .9, G.r) * sat(1. - fw / .08); let grey = ss(.6, .85, G2.a) * .5;
+        o.alb = vec3f(.022, .022, .026) * (.85 + .3 * bl) + vec3f(.07, .066, .06) * grey + vec3f(.26, .24, .22) * speck;
+        o.alb *= 1. - .6 * line(ed, .02, fw); // hairline joints
+        let dust = ss(${(FARPYR.y + 14).toFixed(1)}, ${(FARPYR.y).toFixed(1)}, p.y + (G2.r - .5) * 6.);
+        o.alb = mix(o.alb, vec3f(.36, .28, .19), dust * .35); o.rough = mix(.09, .45, dust) + .05 * G2.r;
+        o.nb = triN(p, dx, dy, w, 2.3, false) * .015;
+      }
     }
     // (no courses on monoliths: glyph-carved stone with a glyph scale (ea), i.e. obelisks and the gate's piers)
     if (mat != 9u && !(i.uv.y > .3 && i.uv.y < .5) && !(i.uv.y > .5 && i.uv.x > .02)) {
@@ -561,7 +573,9 @@ const FLOWERS = array<vec3f, 8>(vec3f(.52, .08, .24), vec3f(.8, .36, .5), vec3f(
     // (ground level: the city's land, or the far-bank complex's terrace)
     let gy = select(${LAND}., ${FARPYR.y}., p.z > ${FARPYR.zb - 60} && abs(p.x) < 46.); // (the far quay's level only along the promenade)
     let bank = ss(1.4 + .8 * S.g, 0., p.y - gy + (S2.r - .5) * .6) * ss(gy - .4, gy - .1, p.y) * (1. - ss(.6, .9, N.y));
-    let dr = sat(max(lie, bank * ss(.3, .55, S.r + .15))) * (1. - o.inlay); // the swept inlay stays clear
+    // (the polished granite of the far pyramid sheds the sand: its own dust is laid at its foot, above)
+    let polished = mat == 0u && i.uv.y > .3 && i.uv.y < .5 && i.uv.x > .5;
+    let dr = sat(max(lie * select(1., .05, polished), bank * ss(.3, .55, S.r + .15))) * (1. - o.inlay); // the swept inlay stays clear
     o.alb = mix(o.alb, mix(vec3f(.67, .52, .35), vec3f(.74, .6, .42), S2.r) * (.9 + .2 * S2.a), dr);
     o.rough = mix(o.rough, .93, dr); o.inlay *= 1. - dr; o.metal *= 1. - dr; o.nb = mix(o.nb, o.nb * .2, dr);
   }
