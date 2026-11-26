@@ -631,9 +631,9 @@ function ogive(hw, ys, y0 = 0, n = 8, k = 1.6) { // (k: arc radius / hw; the ris
 // standing on the ground, r across its rim, about 0.4 r tall, a low domed heap of ash in it, three logs across it
 function fireBowl(mb, x, y, z, r, seg = 12) {
   mb.mat = M.ALLOY; mb.eb = mb.ea = 0;
-  mb.lathe([[0, y], [r * 0.55, y], [r * 0.8, y + r * 0.12], [r * 0.97, y + r * 0.3], [r, y + r * 0.36], [r * 0.93, y + r * 0.36], [r * 0.75, y + r * 0.2], [0, y + r * 0.16]], { seg, cx: x, cz: z, crease: 40 });
-  mb.mat = M.CORE; mb.lathe([[r * 0.92, y + r * 0.33], [r * 0.7, y + r * 0.5], [r * 0.4, y + r * 0.62], [0, y + r * 0.68]], { seg, cx: x, cz: z, crease: 60 }); // ash, heaped above the rim
-  mb.mat = M.BARK; for (const a of [0.3, 1.4, 2.6]) mb.tube([[x + cos(a) * r * 0.55, y + r * 0.4, z + sin(a) * r * 0.55, r * 0.07], [x - cos(a) * r * 0.45, y + r * 0.74, z - sin(a) * r * 0.45, r * 0.06]], 5);
+  mb.lathe([[r * 0.55, y], [r * 0.8, y + r * 0.12], [r * 0.97, y + r * 0.3], [r, y + r * 0.36], [r * 0.93, y + r * 0.36], [r * 0.86, y + r * 0.298]], { seg, cx: x, cz: z, crease: 40 }); /* (no bottom: it stands on the slab; inside, down only to the ash) */
+  mb.mat = M.CORE; mb.lathe([[r * 0.86, y + r * 0.298], [r * 0.6, y + r * 0.36], [r * 0.3, y + r * 0.4], [0, y + r * 0.42]], { seg, cx: x, cz: z, crease: 60 }); // ash, a low mound just above the rim
+  mb.mat = M.BARK; for (const a of [0.3, 1.4, 2.6]) mb.tube([[x + cos(a) * r * 0.55, y + r * 0.3, z + sin(a) * r * 0.55, r * 0.07], [x - cos(a) * r * 0.45, y + r * 0.46, z - sin(a) * r * 0.45, r * 0.06]], 5);
 }
 // the kit complex's entrance (after KitBash3D BldgLgPyramid_A's BuildingA, ~2.4x, measured off its front and side
 // elevations). Front faces -z, the wall line at z = 0:
@@ -644,6 +644,61 @@ function fireBowl(mb, x, y, z, r, seg = 12) {
 //   tapered pendant under a striped cavetto with a gilt torus and an overhanging slab, a striped red band low down, a
 //   carved band at its foot, an unlit fire bowl on top; plain walls with ochre cartouche slots between
 // - behind: the hall's boat-shaped roof, rising in a long curve from the ground at the back to the arch's head
+// the pyramid's south face (meshPyramidCased(107.75, 99.9) at the complex's centre) in the entrance's own frame (it
+// stands at z KP.entranceZ): z on the face at height y
+const PYR_FACE = (y) => { const B = 107.75, H = 99.9, c = 0.19; return -B - KP.entranceZ + (B - B * c) * (y + 2.5) / (H * (1 - c) + 2.5); };
+// the entrance where it runs into the pyramid (kit): everything cut along the face (0.1 m inside it, so the cut hides
+// in the stone), the cut closed by a lid on that plane (for the entrance on its own) and, on every surface, a band of
+// the frame's stone 0.6 m wide following the face
+function clipPyramid(m) {
+  const BAND = 0.6, IN = 0.1, f = new Float32Array(m.vb), b = new Uint8Array(m.vb), out = new MB(m.nv + 1024);
+  const g = (i, s) => f[i * 5 + 2] - (PYR_FACE(f[i * 5 + 1]) + s); // > 0 past the plane (s: shift along z)
+  const copy = (i) => { const j = out.nv++; if (out.nv * 20 > out.vb.byteLength) { const n = new ArrayBuffer(out.vb.byteLength * 2); new Uint8Array(n).set(out.b); out.vb = n; out.f = new Float32Array(n); out.b = new Uint8Array(n); out.sb = new Int8Array(n); }
+    out.b.set(b.subarray(i * 20, i * 20 + 20), j * 20); return j; };
+  // a vertex between out vertices p and q where the plane (shift s) crosses (its other data from p)
+  const cross = (p, q, s) => { const gp = out.f[p * 5 + 2] - (PYR_FACE(out.f[p * 5 + 1]) + s), gq = out.f[q * 5 + 2] - (PYR_FACE(out.f[q * 5 + 1]) + s), t = gp / (gp - gq), j = out.nv++;
+    if (out.nv * 20 > out.vb.byteLength) { const n = new ArrayBuffer(out.vb.byteLength * 2); new Uint8Array(n).set(out.b); out.vb = n; out.f = new Float32Array(n); out.b = new Uint8Array(n); out.sb = new Int8Array(n); }
+    out.b.copyWithin(j * 20, p * 20, p * 20 + 20); for (let k = 0; k < 3; k++) out.f[j * 5 + k] = out.f[p * 5 + k] + (out.f[q * 5 + k] - out.f[p * 5 + k]) * t; return j; };
+  const gv = (i, s) => out.f[i * 5 + 2] - (PYR_FACE(out.f[i * 5 + 1]) + s);
+  // clip a polygon (out vertex ids) to the side gv <= 0 (keep < 0) or >= 0 (keep > 0)
+  const clipPoly = (P, s, keepPast) => { const R = []; for (let i = 0; i < P.length; i++) { const p = P[i], q = P[(i + 1) % P.length], a = gv(p, s) > 0 === keepPast, c = gv(q, s) > 0 === keepPast;
+    if (a) R.push(p); if (a !== c) R.push(cross(p, q, s)); } return R; };
+  const segs = []; // the cut's segments on the plane, for the lid: [x0, y0, x1, y1] running with the solid on their left
+  const map = new Int32Array(m.nv).fill(-1), id = (i) => (map[i] < 0 ? (map[i] = copy(i)) : map[i]);
+  const emit = (P, band) => { if (P.length < 3) return; if (band) for (const v of P) { out.b[v * 20 + 16] = M.MARBLE; out.b[v * 20 + 17] = WEATHERED; out.b[v * 20 + 18] = 0; out.b[v * 20 + 19] = 0; }
+    for (let i = 1; i + 1 < P.length; i++) out.tri(P[0], P[i], P[i + 1]); };
+  for (let t = 0; t < m.ib.length; t += 3) {
+    const T = [m.ib[t], m.ib[t + 1], m.ib[t + 2]], G = T.map((i) => g(i, IN)), GB = T.map((i) => g(i, IN - BAND));
+    if (G.every((v) => v >= 0)) continue; // wholly inside the pyramid
+    if (GB.every((v) => v <= 0)) { out.tri(id(T[0]), id(T[1]), id(T[2])); continue; } // wholly clear of it
+    // fresh copies (the band recolours them), cut to the plane, then split at the band's edge
+    const P = clipPoly(T.map(copy), IN, false); let collared = false;
+    if (P.length >= 3 && G.some((v) => v > 0)) { // the cut's segment on this face: the two new vertices lying on the plane
+      const on = P.filter((v) => abs(gv(v, IN)) < 1e-4); if (on.length === 2) { const a = on[0], c = on[1], sb = new Int8Array(out.vb), nx = sb[a * 20 + 12], ny = sb[a * 20 + 13] + (PYR_FACE(1) - PYR_FACE(0)) * sb[a * 20 + 14]; /* (the normal along the plane's x and up-the-slope directions) */
+        const x0 = out.f[a * 5], y0 = out.f[a * 5 + 1], x1 = out.f[c * 5], y1 = out.f[c * 5 + 1]; // (the face's normal, across the plane: the solid lies the other way)
+        const nl = hypot(nx, ny) || 1; if ((x1 - x0) * ny - (y1 - y0) * nx > 0) segs.push([x0, y0, x1, y1, nx / nl, ny / nl]); else segs.push([x1, y1, x0, y0, nx / nl, ny / nl]); collared = hypot(x1 - x0, y1 - y0) > 1e-3; } }
+    emit(clipPoly(P, IN - BAND, false), false); if (!collared) emit(clipPoly(P, IN - BAND, true), true); /* (a face cut by the pyramid: its last 0.6 m lies under the collar) */
+  }
+  // the lid: the cut's outline filled (non-zero winding), in horizontal bands, on the plane, facing into the pyramid
+  const ys = [...new Set(segs.flatMap((s) => [s[1], s[3]]).map((y) => Math.round(y * 1e4) / 1e4))].sort((p, q) => p - q), nz = vnorm([0, -(PYR_FACE(1) - PYR_FACE(0)), 1]);
+  out.mat = M.MARBLE; out.ea = WEATHERED; out.eb = 0;
+  const P3 = (x, y) => out.v(x, y, PYR_FACE(y) + IN, ...nz);
+  for (let i = 0; i + 1 < ys.length; i++) { const ya = ys[i], yb = ys[i + 1], ym = (ya + yb) / 2; if (yb - ya < 1e-4) continue;
+    const X = []; for (const [x0, y0, x1, y1] of segs) { if ((y0 - ym) * (y1 - ym) >= 0) continue; const at = (y) => x0 + (x1 - x0) * (y - y0) / (y1 - y0); X.push([at(ym), at(ya), at(yb), y1 > y0 ? 1 : -1]); }
+    X.sort((p, q) => p[0] - q[0]);
+    // crossings a few cm apart are one (a face and a flat decal on it count once; two blocks sharing a face cancel)
+    const Y = []; for (const c of X) { const l = Y[Y.length - 1]; if (l && c[0] - l[0] < 0.08 && abs(c[1] - l[1]) < 0.08 && abs(c[2] - l[2]) < 0.08) l[3] = clamp(l[3] + c[3], -1, 1) || 0; else Y.push(c.slice()); }
+    let w = 0; for (let k = 0; k + 1 < Y.length; k++) { w = clamp(w + Y[k][3], -1, 1); if (w === 0) continue; const A = Y[k], C = Y[k + 1]; out.quad(P3(A[1], ya), P3(C[1], ya), P3(C[2], yb), P3(A[2], yb)); } }
+  // the trim's volume (kit): a collar 0.15 proud round the cut, BAND deep, its outer face and its front edge
+  const PROUD = 0.15; out.mat = M.MARBLE; out.ea = WEATHERED; out.eb = 0;
+  for (let [x0, y0, x1, y1, nx, ny] of segs) { if (hypot(x1 - x0, y1 - y0) < 1e-3) continue;
+    { const l = hypot(x1 - x0, y1 - y0), ex = (x1 - x0) / l * PROUD, ey = (y1 - y0) / l * PROUD; x0 -= ex; y0 -= ey; x1 += ex; y1 += ey; } /* (a little longer at both ends: the corners close) */
+    const ox = nx * PROUD, oy = ny * PROUD, zA = PYR_FACE(y0) + IN, zB = PYR_FACE(y1) + IN, zA2 = PYR_FACE(y0 + oy) + IN, zB2 = PYR_FACE(y1 + oy) + IN;
+    out.quad(out.v(x0 + ox, y0 + oy, zA2, nx, ny, 0), out.v(x1 + ox, y1 + oy, zB2, nx, ny, 0), out.v(x1 + ox, y1 + oy, zB - BAND, nx, ny, 0), out.v(x0 + ox, y0 + oy, zA - BAND, nx, ny, 0)); // its outer face
+    out.quad(out.v(x0, y0, zA - BAND, 0, 0, -1), out.v(x1, y1, zB - BAND, 0, 0, -1), out.v(x1 + ox, y1 + oy, zB - BAND, 0, 0, -1), out.v(x0 + ox, y0 + oy, zA - BAND, 0, 0, -1)); // its front edge
+    out.quad(out.v(x0, y0, zA, ...nz), out.v(x1, y1, zB, ...nz), out.v(x1 + ox, y1 + oy, zB2, ...nz), out.v(x0 + ox, y0 + oy, zA2, ...nz)); } // its back, on the lid's plane
+  out.mat = 0; out.ea = 0; return out.build();
+}
 function meshKitEntrance(lod) {
   const mb = new MB(1 << 15), n = lod ? 5 : 10, zf = -7;
   // a flat convex piece on the front, z0..z1 (any winding: made counter-clockwise)
@@ -651,78 +706,316 @@ function meshKitEntrance(lod) {
     let a2 = 0; for (let i = 0; i < pts.length; i++) { const p = pts[i], q = pts[(i + 1) % pts.length]; a2 += p[0] * q[1] - q[0] * p[1]; }
     extrude(mb, a2 < 0 ? pts.slice().reverse() : pts, 0, z0, z1);
   };
-  const disc = (x, y, r, z0, z1) => { const P = [], k = lod ? 10 : 20; for (let i = 0; i < k; i++) { const t = i / k * TAU; P.push([x + r * cos(t), y + r * sin(t)]); } fq(P, z0, z1); };
+  // the same, pressed on a wall at z1: no back face (never seen)
+  const fqd = (pts, z0, z1) => { let a2 = 0; for (let i = 0; i < pts.length; i++) { const p = pts[i], q = pts[(i + 1) % pts.length]; a2 += p[0] * q[1] - q[0] * p[1]; }
+    const Q = a2 < 0 ? pts.slice().reverse() : pts; extrude(mb, Q, 0, z0, z1, false); mb.poly(Q.map((p) => [p[0], p[1], z0]), [0, 0, -1], 1); };
+  const disc = (x, y, r, z0, z1, back = true) => { const P = [], k = lod ? 10 : 20; for (let i = 0; i < k; i++) { const t = i / k * TAU; P.push([x + r * cos(t), y + r * sin(t)]); } (back ? fq : fqd)(P, z0, z1); };
   // a thin fillet from (x0, y0) to (x1, y1), w wide, on the face at z
-  const fillet = (x0, y0, x1, y1, w, z) => { const dx = x1 - x0, dy = y1 - y0, l = hypot(dx, dy), ox = -dy / l * w / 2, oy = dx / l * w / 2; fq([[x0 - ox, y0 - oy], [x1 - ox, y1 - oy], [x1 + ox, y1 + oy], [x0 + ox, y0 + oy]], z - 0.12, z); };
-  unpaint(mb, M.TRIM); mb.box(-36.5, -0.4, -10.5, 36.5, 0.6, 9, 0.05); // plinth
+  const fillet = (x0, y0, x1, y1, w, z) => { const dx = x1 - x0, dy = y1 - y0, l = hypot(dx, dy), ox = -dy / l * w / 2, oy = dx / l * w / 2; fqd([[x0 - ox, y0 - oy], [x1 - ox, y1 - oy], [x1 + ox, y1 + oy], [x0 + ox, y0 + oy]], z - 0.12, z); };
+  unpaint(mb, M.TRIM); mb.box(-36.5, -0.4, -10.5, 36.5, 0.6, -0.75, 0.05); mb.box(-20.1, -0.4, -0.75, 20.1, 0.6, 60, 0.05); // plinth: in front, full width, up to the enclosure wall's footing (local z -0.7); along the corridor, under it to the pyramid (cut on its face)
+  const OX = (y) => -34.6 + 8.2 * (y - 0.6) / 28.4; // the tower's battered outer face, x at height y (measured off the kit's front elevation)
   for (const sd of [-1, 1]) {
     const X = (x) => sd * x, P = (pts) => pts.map(([x, y]) => [X(x), y]), xs = (a, b) => [min(X(a), X(b)), max(X(a), X(b))];
     // the tower: outer face battered, inner face plumb
-    paint(mb, WHITE); fq(P([[-14, 0.6], [-14, 29], [-27.6, 29], [-32.3, 0.6]]), zf, 8);
+    { const NZ0 = -4.4, NZ1 = -1.8, NY = 17.5; paint(mb, WHITE); // (the niche's recess: z NZ0..NZ1, up to NY; see the frame below)
+      fq(P([[-14, 0.6], [-14, 29], [OX(29), 29], [OX(0.6), 0.6]]), zf, NZ0); fq(P([[-14, 0.6], [-14, 29], [OX(29), 29], [OX(0.6), 0.6]]), NZ1, 8);
+      fq(P([[-14, 0.6], [-14, 29], [OX(29), 29], [OX(NY), NY], [OX(NY), 0.6]]), NZ0, NZ1); }
     // thin sandstone fillets framing its face, the pendant
     mb.mat = M.MARBLE; mb.eb = mb.ea = 0;
-    fillet(X(-30.9), 0.8, X(-26.4), 27.9, 0.28, zf); fillet(X(-15.4), 0.8, X(-15.4), 27.9, 0.28, zf); fillet(X(-26.4), 27.9, X(-15.4), 27.9, 0.28, zf);
-    fq(P([[-20.8, 16.5], [-19.8, 16.5], [-19.2, 29], [-21.4, 29]]), zf - 0.45, zf);
+    { // a continuous sandstone frame 0.3 proud, standing on the carved band (from its top, 5.4 m): the slanting edge, the
+      // top, the inner edge; its ends cut level, so they sit flat on the band
+      const yb = 5.4, F = (pts) => fqd(P(pts), zf - 0.12, zf), w = 0.28, xo = (y) => OX(y) + 1.4; /* (0.12 proud: under the red band, 0.16, which runs across it unbroken) */
+      F([[xo(yb), yb], [xo(yb) + w, yb], [xo(27.9) + w, 27.9], [xo(27.9), 27.9]]); // the slanting edge, its foot cut level
+      F([[xo(27.9), 27.9 - w], [-15.4 + w / 2, 27.9 - w], [-15.4 + w / 2, 27.9], [xo(27.9), 27.9]]); // the top
+      F([[-15.4 - w / 2, yb], [-15.4 + w / 2, yb], [-15.4 + w / 2, 27.9], [-15.4 - w / 2, 27.9]]); // the inner edge
+    }
+    // the stone key: a tapered pendant from under the slab (the fire bowl's base) down the face, standing proud of the
+    // cavetto; one on the front and one on the battered outer face
+    { const key = (V) => { const c = V.reduce((p, q) => [p[0] + q[0] / 8, p[1] + q[1] / 8, p[2] + q[2] / 8], [0, 0, 0]);
+        for (const f of [[4, 6, 7, 5], [0, 4, 5, 1], [2, 3, 7, 6], [0, 2, 6, 4], [1, 5, 7, 3]]) { const [p, q, r, u] = f.map((i) => V[i]); /* (no back: its first four corners lie on or in the wall) */
+          let nn = vnorm(vcross([q[0] - p[0], q[1] - p[1], q[2] - p[2]], [u[0] - p[0], u[1] - p[1], u[2] - p[2]])); const m = [(p[0] + r[0]) / 2 - c[0], (p[1] + r[1]) / 2 - c[1], (p[2] + r[2]) / 2 - c[2]];
+          if (nn[0] * m[0] + nn[1] * m[1] + nn[2] * m[2] < 0) nn = nn.map((v) => -v); mb.quad(mb.v(...p, ...nn), mb.v(...q, ...nn), mb.v(...r, ...nn), mb.v(...u, ...nn)); } };
+      const y0 = 16.5, y1 = 30.58, w0 = 0.55, w1 = 1.05, d0 = 0.6, d1 = 0.75; /* (about as proud as the cavetto, as on the kit) */ mb.mat = M.MARBLE; mb.eb = 0; mb.ea = WEATHERED;
+      const xc = X(-20.2); // on the front face (z = zf), out toward -z
+      key([[xc - w0, y0, zf], [xc + w0, y0, zf], [xc - w1, y1, zf], [xc + w1, y1, zf], [xc - w0, y0, zf - d0], [xc + w0, y0, zf - d0], [xc - w1, y1, zf - d1], [xc + w1, y1, zf - d1]]);
+      const zc = 0.5, o = -sd, F = (y, z, d) => [X(OX(y)) + o * d, y, z]; // on the battered outer face, out away from the building
+      { // on the outer face it hangs plumb from the slab (its outer face vertical, just inside the slab's edge) and ends
+        // where the battered wall comes out to meet it
+        const xv = 27.6, yb = 0.6 + (34.6 - xv - 0.1) / 8.2 * 28.4, V = (y, z, out) => [X(out ? -xv : OX(y) + 0.15), y, z]; /* (its back set into the wall: no shared plane) */
+        key([V(yb, zc - 0.8, 0), V(yb, zc + 0.8, 0), V(y1, zc - w1, 0), V(y1, zc + w1, 0), V(yb, zc - 0.8, 1), V(yb, zc + 0.8, 1), V(y1, zc - w1, 1), V(y1, zc + w1, 1)]); }
+      { // low on the outer face, near its front: a tall recess in a sandstone frame (jambs, a lintel), coursed stone at
+        // its back; all leaning with the batter
+        const G = (y, z, d) => [X(OX(y)) + o * d, y, z], blk = (ya, yb2, za, zb, d0b, d1b) => key([G(ya, za, d0b), G(ya, zb, d0b), G(yb2, za, d0b), G(yb2, zb, d0b), G(ya, za, d1b), G(ya, zb, d1b), G(yb2, za, d1b), G(yb2, zb, d1b)]);
+        const fz0 = -5.6, fz1 = -0.6, jw = 1.2, yt = 17.5; /* (jambs fz0..fz0+jw and fz1-jw..fz1: the recess between them, -4.4..-1.8) */
+        mb.mat = M.MARBLE; mb.eb = 0; mb.ea = WEATHERED; blk(0.6, yt, fz0, fz0 + jw, -0.15, 0.9); blk(0.6, yt, fz1 - jw, fz1, -0.15, 0.9); blk(yt, yt + 1.4, fz0 - 0.3, fz1 + 0.3, -0.15, 1.0); // jambs, lintel
+        // the rest of the outer face: the carved band at its foot and the striped red band, a sandstone fillet up its
+        // front edge and along its top (all on the batter; not across the niche)
+        for (const [za, zb] of [[zf, fz0], [fz1, 8]]) { /* (from the corner, where the front's band ends, round to the back) */
+          mb.eb = GLYPH; mb.ea = 12; blk(0.6, 5.4, za, zb, -0.05, 0.16); mb.eb = mb.ea = 0;
+          paint(mb, RED); blk(8, 8.7, za, zb, -0.05, 0.16);
+          if (!lod) for (let z = za + 0.3, i = 0; z < zb - 0.2; z += 0.55, i++) { paint(mb, i & 1 ? BLUE : OCHRE); blk(8.05, 8.65, z - 0.08, z + 0.08, 0.1, 0.19); }
+        }
+        mb.mat = M.MARBLE; mb.eb = mb.ea = 0; blk(0.8, 27.9, zf + 0.25, zf + 0.53, -0.05, 0.12); blk(27.6, 27.9, zf + 0.25, 7.6, -0.05, 0.12); blk(0.8, 27.9, 7.32, 7.6, -0.05, 0.12);
+        mb.ea = WEATHERED; }
+      // its back face (kit): the carved band at its foot and the striped red band, out from the side wall to the corner
+      // (past it by their depth, capping the side bands), and a sandstone frame: up the slanting edge, under the
+      // cornice, down beside the side wall; pieces on the face at z 8, facing back
+      { const zb = 8, fqb = (pts, d) => { let a2 = 0; for (let i = 0; i < pts.length; i++) { const p = pts[i], q = pts[(i + 1) % pts.length]; a2 += p[0] * q[1] - q[0] * p[1]; }
+          const Q = a2 < 0 ? pts.slice().reverse() : pts; extrude(mb, Q, 0, zb, zb + d, false); mb.poly(Q.map((p) => [p[0], p[1], zb + d]), [0, 0, 1], 1); };
+        const xi = -19.5, xo2 = (y) => OX(y) + 1.4, w = 0.28;
+        mb.mat = M.MARBLE; mb.eb = GLYPH; mb.ea = 12; fqb(P([[xi, 0.6], [xi, 5.4], [OX(5.4) - 0.16, 5.4], [OX(0.6) - 0.16, 0.6]]), 0.16); mb.eb = mb.ea = 0;
+        paint(mb, RED); fqb(P([[xi, 8], [xi, 8.7], [OX(8.7) - 0.16, 8.7], [OX(8) - 0.16, 8]]), 0.16);
+        if (!lod) for (let x = OX(8.4) + 0.3, i = 0; x < xi - 0.3; x += 0.55, i++) { paint(mb, i & 1 ? BLUE : OCHRE); fqb(P([[x - 0.08, 8.05], [x + 0.08, 8.05], [x + 0.08, 8.65], [x - 0.08, 8.65]]), 0.2); }
+        mb.mat = M.MARBLE; mb.eb = 0; mb.ea = 0;
+        fqb(P([[xo2(5.4), 5.4], [xo2(5.4) + w, 5.4], [xo2(27.9) + w, 27.9], [xo2(27.9), 27.9]]), 0.12); // the slanting edge
+        fqb(P([[xo2(27.9), 27.9 - w], [xi - 0.4, 27.9 - w], [xi - 0.4, 27.9], [xo2(27.9), 27.9]]), 0.12); // under the cornice
+        fqb(P([[xi - 0.4 - w, 5.4], [xi - 0.4, 5.4], [xi - 0.4, 27.9], [xi - 0.4 - w, 27.9]]), 0.12); } // beside the side wall
+      mb.ea = 0; }
     // carved band at the foot, the striped red band above it
-    mb.mat = M.MARBLE; mb.eb = GLYPH; mb.ea = 12; fq(P([[-14, 0.6], [-14, 5.4], [-31.4, 5.4], [-32.2, 0.6]]), zf - 0.08, zf); mb.eb = mb.ea = 0;
-    paint(mb, RED); fq(P([[-14, 8], [-14, 8.7], [-31.0, 8.7], [-31.1, 8]]), zf - 0.06, zf);
-    if (!lod) for (let x = -30.6, i = 0; x < -14.2; x += 0.55, i++) { paint(mb, i & 1 ? BLUE : OCHRE); const [a, b] = xs(x - 0.08, x + 0.08); mb.box(a, 8.05, zf - 0.09, b, 8.65, zf - 0.05, 0); }
+    mb.mat = M.MARBLE; mb.eb = GLYPH; mb.ea = 12; fq(P([[-14, 0.6], [-14, 5.4], [OX(5.4) - 0.16, 5.4], [OX(0.6) - 0.16, 0.6]]), zf - 0.16, zf); /* (out past the corner by its own depth: it caps the side band's end) */ /* (out to the corner, meeting the side's band) */ mb.eb = mb.ea = 0;
+    paint(mb, RED); fqd(P([[-14, 8], [-14, 8.7], [OX(8.7) - 0.16, 8.7], [OX(8) - 0.16, 8]]), zf - 0.16, zf);
+    { // round the inside corner: the bands carried along the tower's side that faces the wall, back to the wall's face
+      const [a0, b0] = xs(-14, -13.84); mb.mat = M.MARBLE; mb.eb = GLYPH; mb.ea = 12; mb.box(a0, 0.6, zf - 0.16, b0, 5.4, -5.36, 0); mb.eb = mb.ea = 0;
+      paint(mb, RED); mb.box(a0, 8, zf - 0.16, b0, 8.7, -5.36, 0);
+      if (!lod) for (let z = zf + 0.15, i = 0; z < -5.5; z += 0.55, i++) { paint(mb, i & 1 ? BLUE : OCHRE); const [c, e] = xs(-13.84, -13.78); mb.box(c, 8.05, z - 0.08, e, 8.65, z + 0.08, 0); } }
+    if (!lod) for (let x = OX(8.4) + 0.3, i = 0; x < -14.2; x += 0.55, i++) { paint(mb, i & 1 ? BLUE : OCHRE); const [a, b] = xs(x - 0.08, x + 0.08); fqd([[a, 8.05], [b, 8.05], [b, 8.65], [a, 8.65]], zf - 0.2, zf - 0.15); /* (on the band's face, which stands 0.16 proud) */ }
     // cavetto (striped, a gilt torus under it) and the overhanging slab
-    const [g0, g1] = xs(-27.9, -13.7); mb.mat = M.GOLD; mb.eb = mb.ea = 0; mb.box(g0, 28.75, zf - 0.35, g1, 29.1, 8.3, 0.04);
-    paint(mb, RED); frustum(mb, X(-20.8), 0.6, 7.0, 7.65, 7.6, 8.25, 29.1, 30.6, false);
-    if (!lod) for (let x = -27.9, i = 0; x < -13.8; x += 0.5, i++) { paint(mb, i & 1 ? BLUE : OCHRE); const [a, b] = xs(x - 0.07, x + 0.07); mb.box(a, 29.2, zf - 0.68, b, 30.5, zf - 0.6, 0); }
-    const [s0, s1] = xs(-28.9, -12.8); unpaint(mb, M.TRIM); mb.box(s0, 30.6, zf - 1.1, s1, 31.5, 9.2, 0.05);
-    fireBowl(mb, X(-20.8), 31.5, 0.6, 2.8, lod ? 8 : 14);
+    const [g0, g1] = xs(-26.8, -13.7); mb.mat = M.GOLD; mb.eb = mb.ea = 0; mb.box(g0, 28.75, zf - 0.35, g1, 29.1, 8.3, 0.04);
+    paint(mb, RED); frustum(mb, X(-20.2), 0.6, 6.4, 7.65, 7.0, 8.25, 29.1, 30.6, false);
+    if (!lod) { const cx = X(-20.2), cz = 0.6, h0x = 6.4, h1x = 7.0, h0z = 7.65, h1z = 8.25, y0 = 29.1, y1 = 30.6, e = 0.03, hw = 0.07; // stripes on the cavetto's four faces, lying on them
+      const strip = (A0, A1, B0, B1, n, k) => { paint(mb, k & 1 ? BLUE : OCHRE); mb.quad(mb.v(...A0, ...n), mb.v(...A1, ...n), mb.v(...B1, ...n), mb.v(...B0, ...n)); };
+      for (const sz of [-1, 1]) { const n = vnorm([0, (h1z - h0z) / (y1 - y0), sz]); let i = 0; for (let u = -0.95; u <= 0.95; u += 0.08, i++) { const z0 = cz + sz * (h0z + e), z1 = cz + sz * (h1z + e);
+        strip([cx + u * h0x - hw, y0, z0], [cx + u * h1x - hw, y1, z1], [cx + u * h0x + hw, y0, z0], [cx + u * h1x + hw, y1, z1], n, i); } }
+      for (const sx of [-1, 1]) { const n = vnorm([sx, (h1x - h0x) / (y1 - y0), 0]); let i = 0; for (let u = -0.96; u <= 0.96; u += 0.065, i++) { const x0 = cx + sx * (h0x + e), x1 = cx + sx * (h1x + e);
+        strip([x0, y0, cz + u * h0z - hw], [x1, y1, cz + u * h1z - hw], [x0, y0, cz + u * h0z + hw], [x1, y1, cz + u * h1z + hw], n, i); } } }
+    const [s0, s1] = xs(-27.9, -12.6); unpaint(mb, M.TRIM); mb.box(s0, 30.6, zf - 1.1, s1, 31.5, 9.2, 0.05);
+    { const cx = X(-20.2), cz = 0.6; // four diagonal marks on the slab round the bowl, the bowl standing on it
+      mb.mat = M.BARK; mb.eb = mb.ea = 0; for (const sx of [-1, 1]) for (const sz of [-1, 1]) { const P = (u, v) => [cx + sx * u, 31.53, cz + sz * v]; mb.poly([P(2.9, 3.6), P(3.6, 2.9), P(5.3, 4.6), P(4.6, 5.3)], [0, 1, 0], 1); }
+      fireBowl(mb, cx, 31.5, cz, 2.8, lod ? 8 : 14); }
+    /* (no buttress behind the tower: the kit has nothing there, kit mesh) */
     // plain walls between the towers and the arch, with ochre cartouche slots; a taller block behind
-    paint(mb, WHITE); let [a, b] = xs(-14, -6); mb.box(a, 0.6, -5, b, 27, 8, 0); [a, b] = xs(-10.5, -6); mb.box(a, 0.6, 4, b, 30, 10, 0);
-    unpaint(mb, M.TRIM); [a, b] = xs(-10.9, -9.9); for (const [y0, y1] of [[15, 20.5], [9.8, 12.6]]) mb.box(a, y0, -5.3, b, y1, -4.95, 0.45); // pale rounded slots
-    paint(mb, RED); [a, b] = xs(-14, -8.4); mb.box(a, 8, -5.08, b, 8.7, -4.98, 0);
+    paint(mb, WHITE); let [a, b] = xs(-14, -8.3); mb.box(a, 0.6, -5.17, b, 27, 6.5, 0); /* (kit mesh: one flat top at 27 m from the front wall back to z 6.5) */ /* (its face is the panel below, with the slots) */  /* (narrowing in steps as they run back beside the hall) */ // stepping up to the arch
+    { // two slots sunk in the forward wall, rounded at both ends, gilt at the back (a sandstone lip round them)
+      const xc = X(-11.15), rw = 0.5, slot = (y0, y1) => { const P = [], k = lod ? 4 : 8;
+          for (let i = 0; i <= k; i++) { const an = PI * i / k; P.push([xc + rw * cos(an), y1 - rw + rw * sin(an)]); } for (let i = 0; i <= k; i++) { const an = PI + PI * i / k; P.push([xc + rw * cos(an), y0 + rw + rw * sin(an)]); } return P; };
+      for (const [y0, y1] of [[15, 21], [10, 12.8]]) { const S = slot(y0, y1); mb.mat = M.GOLD; mb.eb = mb.ea = 0; mb.poly(S.map(([x, y]) => [x, y, -5.21]), [0, 0, -1], 1); /* the gilt back, 0.15 deep */
+        unpaint(mb, M.TRIM); for (let i = 0; i < S.length; i++) { const p = S[i], q = S[(i + 1) % S.length], nx = -(q[1] - p[1]), ny = q[0] - p[0], l = hypot(nx, ny) || 1; /* the slot's sides, facing in */
+          { const mx = (p[0] + q[0]) / 2 - xc, my = (p[1] + q[1]) / 2, cy = clamp(my, y0 + rw, y1 - rw), sg = (nx * mx + ny * (my - cy)) > 0 ? -1 : 1; /* (inward: toward the slot's spine) */ const flip = sg; /* (build() flips a quad to match its normals) */ mb.quad(mb.v(p[0], p[1], -5.36, sg * nx / l, sg * ny / l, 0), mb.v(q[0], q[1], -5.36, sg * nx / l, sg * ny / l, 0), mb.v(q[0], q[1], -5.21, sg * nx / l, sg * ny / l, 0), mb.v(p[0], p[1], -5.21, sg * nx / l, sg * ny / l, 0)); } /* facing into the slot */ } }
+      // the wall's face round the slots, a hair proud of the box (the box's face shows through the slots as their back)
+      paint(mb, WHITE); { const [a0, b0] = xs(-14, -8.3), z = -5.36; const ring = (y0, y1) => slot(y0, y1);
+        mb.quad(mb.v(a0, 0.6, z, 0, 0, -1), mb.v(b0, 0.6, z, 0, 0, -1), mb.v(b0, 9.6, z, 0, 0, -1), mb.v(a0, 9.6, z, 0, 0, -1));
+        mb.quad(mb.v(a0, 13.2, z, 0, 0, -1), mb.v(b0, 13.2, z, 0, 0, -1), mb.v(b0, 14.6, z, 0, 0, -1), mb.v(a0, 14.6, z, 0, 0, -1));
+        mb.quad(mb.v(a0, 21.4, z, 0, 0, -1), mb.v(b0, 21.4, z, 0, 0, -1), mb.v(b0, 26.5, z, 0, 0, -1), mb.v(a0, 26.5, z, 0, 0, -1));
+        mb.quad(mb.v(a0, 26.5, z, 0, 1, 0), mb.v(b0, 26.5, z, 0, 1, 0), mb.v(b0, 26.5, -5.17, 0, 1, 0), mb.v(a0, 26.5, -5.17, 0, 1, 0)); /* the strip of top between the panel and the box */
+        for (const x of [a0, b0]) mb.quad(mb.v(x, 0.6, z, x === a0 ? -1 : 1, 0, 0), mb.v(x, 26.5, z, x === a0 ? -1 : 1, 0, 0), mb.v(x, 26.5, -5.17, x === a0 ? -1 : 1, 0, 0), mb.v(x, 0.6, -5.17, x === a0 ? -1 : 1, 0, 0)); /* its ends */
+        const L0 = min(xc - rw, xc + rw), R0 = max(xc - rw, xc + rw);
+        // round the slots' rounded ends: the panel filled up to each arc (a fan from the corners of its box)
+        for (const [y0, y1] of [[10, 12.8], [15, 21]]) for (const [yc, sgn, yb] of [[y1 - rw, 1, y1 + 0.4], [y0 + rw, -1, y0 - 0.4]]) {
+          const k = lod ? 4 : 8, arc = []; for (let i = 0; i <= k; i++) { const an = PI * i / k; arc.push([xc + rw * cos(an), yc + sgn * rw * sin(an)]); }
+          for (let i = 0; i < k; i++) { const p = arc[i], q = arc[i + 1], c = [p[0] + q[0] < 2 * xc ? L0 : R0, yb]; mb.poly([[c[0], c[1], z], [p[0], p[1], z], [q[0], q[1], z]], [0, 0, -1], 1); }
+          mb.poly([[L0, yb, z], [L0, yc, z], [arc[k][0], arc[k][1], z]], [0, 0, -1], 1); mb.poly([[R0, yb, z], [arc[0][0], arc[0][1], z], [R0, yc, z]], [0, 0, -1], 1);
+          mb.poly([[L0, yb, z], [arc[k / 2][0], arc[k / 2][1], z], [R0, yb, z]], [0, 0, -1], 1); }
+        for (const [y0, y1] of [[9.6, 13.2], [14.6, 21.4]]) { mb.quad(mb.v(a0, y0, z, 0, 0, -1), mb.v(L0, y0, z, 0, 0, -1), mb.v(L0, y1, z, 0, 0, -1), mb.v(a0, y1, z, 0, 0, -1)); /* (beside the slot, full height) */
+          mb.quad(mb.v(R0, y0, z, 0, 0, -1), mb.v(b0, y0, z, 0, 0, -1), mb.v(b0, y1, z, 0, 0, -1), mb.v(R0, y1, z, 0, 0, -1)); } } }
+    mb.mat = M.MARBLE; mb.eb = GLYPH; mb.ea = 12; [a, b] = xs(-14, -8.3); mb.box(a, 0.6, -5.5, b, 5.4, -5.3, 0); mb.eb = mb.ea = 0; // the carved band at its foot
+    paint(mb, RED); fqd([[a, 8], [b, 8], [b, 8.7], [a, 8.7]], -5.52, -5.3);
+    if (!lod) for (let x = -13.8, i = 0; x < -8.5; x += 0.55, i++) { paint(mb, i & 1 ? BLUE : OCHRE); const [c, e] = xs(x - 0.08, x + 0.08); fqd([[c, 8.05], [e, 8.05], [e, 8.65], [c, 8.65]], -5.57, -5.5); } // its stripes
     // the hall's side blocks behind the towers
-    paint(mb, WHITE); { const X0 = X(-19.5), X1 = X(-10.4), Q = [[8, 0.6], [17, 0.6], [8, 24]]; for (const x of [X0, X1]) void x; extrudeX(mb, Q, min(X0, X1), max(X0, X1)); } // the hall's side blocks, sloping down to the back
+    { const X0 = min(X(-19.5), X(-10.4)), X1 = max(X(-19.5), X(-10.4)), xo = sd < 0 ? X1 : X0, so = -sd; /* (the outer face: the one away from the hall) */
+      // (kit mesh) a block whose top slopes down toward the pyramid, 0.35 m per m from 26.7 m behind the tower; along
+      // the hall a strip 2.5 m wide standing 3 m higher, sloping alike; both run into the pyramid (cut on its face)
+      const ytop = (z) => min(27, 29.275 - 0.35 * z), /* (kit mesh: flat at 27 to z 6.5, then down 0.35 m per m) */ xh = sd < 0 ? X0 : X1, xv = X(-8.0); /* (xh: the block's face toward the hall) */ paint(mb, WHITE);
+      { // the block (from the wall behind the front: it fills the corner by the tower): its top and back end; its foot,
+        // its front (against the wall) and its face toward the hall (behind the strip) are never seen; its outer face
+        // built round the recess below
+        const Qb = [[2, 0.6], [60, 0.6], [60, ytop(60)], [6.5, 27], [2, 27]];
+        for (const i of [1, 2, 3]) { const a = Qb[i], c = Qb[i + 1], ez = c[0] - a[0], ey = c[1] - a[1], l = hypot(ez, ey) || 1, nn = [0, -ez / l, ey / l];
+          mb.quad(mb.v(X0, a[1], a[0], ...nn), mb.v(X0, c[1], c[0], ...nn), mb.v(X1, c[1], c[0], ...nn), mb.v(X1, a[1], a[0], ...nn)); }
+        const xi2 = sd < 0 ? X0 : X1; mb.poly(Qb.map(([z, y]) => [xi2, y, z]), [sd, 0, 0], 1); } /* (its face toward the hall: hidden by the strip, but the lid where the pyramid cuts needs its outline) */
+      { // (its face toward the hall stands inside the hall's wall, and its foot on the ground: neither is built; the hall's
+        // wall behind it is not built either, so the strip and the hall read as one block where the pyramid cuts them)
+        const Q = [[3.5, 0.6], [3.5, 30], [6.5, 30], [60, ytop(60) + 3], [60, 0.6]], x0 = min(xh, xv), x1 = max(xh, xv); /* (kit mesh: its front a block at z 3.5) */
+        for (let i = 0; i + 1 < Q.length; i++) { const a = Q[i], b = Q[i + 1], ez = b[0] - a[0], ey = b[1] - a[1], l = hypot(ez, ey) || 1, nn = [0, ez / l, -ey / l];
+          mb.quad(mb.v(x0, a[1], a[0], ...nn), mb.v(x0, b[1], b[0], ...nn), mb.v(x1, b[1], b[0], ...nn), mb.v(x1, a[1], a[0], ...nn)); }
+        const xo2 = sd < 0 ? x1 : x0; mb.poly(Q.map(([z, y]) => [xo2, y, z]), [-sd, 0, 0], 1); } /* (from the wall's step: the next step up toward the arch) */
+      // a piece standing out of the outer face, d proud: its outline Q ([z, y], convex), its sides and its face (no back)
+      const proud = (Q, d) => { const x1 = xo + so * d; let a2 = 0; for (let i = 0; i < Q.length; i++) { const p = Q[i], q = Q[(i + 1) % Q.length]; a2 += p[0] * q[1] - q[0] * p[1]; }
+        const R = a2 < 0 ? Q.slice().reverse() : Q; for (let i = 0; i < R.length; i++) { const a = R[i], c = R[(i + 1) % R.length], ez = c[0] - a[0], ey = c[1] - a[1], l = hypot(ez, ey) || 1, nn = [0, -ez / l, ey / l];
+          mb.quad(mb.v(xo, a[1], a[0], ...nn), mb.v(xo, c[1], c[0], ...nn), mb.v(x1, c[1], c[0], ...nn), mb.v(x1, a[1], a[0], ...nn)); }
+        mb.poly(R.map(([z, y]) => [x1, y, z]), [so, 0, 0], 1); };
+      // (kit) the lines are thin fillets of the frame's stone, 0.22 wide, a little proud
+      const f = (z0, y0, z1, y1, w = 0.22) => { const dz = z1 - z0, dy = y1 - y0, l = hypot(dz, dy), ez = dz / l * w / 2, ey = dy / l * w / 2, oz = -dy / l * w / 2, oy = dz / l * w / 2;
+        proud([[z0 - ez - oz, y0 - ey - oy], [z1 + ez - oz, y1 + ey - oy], [z1 + ez + oz, y1 + ey + oy], [z0 - ez + oz, y0 - ey + oy]], 0.07); };
+      // a frame of fillets along a polyline (closed or not), its corners mitred: each piece ends on the corner's bisector
+      const fr = (L, closed, w = 0.22) => { const n = L.length, E = []; for (let i = 0; i < (closed ? n : n - 1); i++) { const a = L[i], b = L[(i + 1) % n], dz = b[0] - a[0], dy = b[1] - a[1], l = hypot(dz, dy); E.push([a, b, [-dy / l * w / 2, dz / l * w / 2]]); }
+        const meet = (e1, e2, s) => { // where the offset lines (side s) of two edges cross
+          const p = [e1[0][0] + e1[2][0] * s, e1[0][1] + e1[2][1] * s], r = [e1[1][0] - e1[0][0], e1[1][1] - e1[0][1]], q = [e2[0][0] + e2[2][0] * s, e2[0][1] + e2[2][1] * s], u = [e2[1][0] - e2[0][0], e2[1][1] - e2[0][1]];
+          const den = r[0] * u[1] - r[1] * u[0]; if (abs(den) < 1e-9) return [e1[1][0] + e1[2][0] * s, e1[1][1] + e1[2][1] * s]; const k = ((q[0] - p[0]) * u[1] - (q[1] - p[1]) * u[0]) / den; return [p[0] + r[0] * k, p[1] + r[1] * k]; };
+        E.forEach((e, i) => { const pv = closed ? E[(i - 1 + E.length) % E.length] : E[i - 1], nx = closed ? E[(i + 1) % E.length] : E[i + 1];
+          const c0 = (s) => (pv ? meet(pv, e, s) : [e[0][0] + e[2][0] * s, e[0][1] + e[2][1] * s]), c1 = (s) => (nx ? meet(e, nx, s) : [e[1][0] + e[2][0] * s, e[1][1] + e[2][1] * s]);
+          proud([c0(-1), c1(-1), c1(1), c0(1)], 0.07); }); };
+      // its outer face (kit): a rectangle by the tower, a sandstone panel, a triangle pointing to the pyramid
+      mb.mat = M.MARBLE; mb.eb = 0; mb.ea = WEATHERED; fr([[17.75, 0.6], [17.75, ytop(17.75) - 0.8], [8.8, ytop(8.8) - 0.8], [8.8, 0.6]], false); /* (kit: 0.8 off the top, the front edge and the recess's frame alike, down to the ground) */
+      { // the triangle (kit): its three sides parallel to what bounds it - the recess's frame, the sloping top, the
+        // pyramid's face (its trim) - and the same 0.8 off each
+        const m = 0.8, za = 21.9 + 0.15 + m, top = (z) => ytop(z) - m * Math.hypot(1, 0.35), hyp = (y) => PYR_FACE(y) + 0.1 - 0.6 - m * Math.hypot(1, PYR_FACE(1) - PYR_FACE(0));
+        let yb = 0; for (let i = 0; i < 40; i++) yb = top(hyp(yb)); const B = [hyp(yb), yb], A = [za, top(za)]; let yc2 = 0; for (let i = 0; i < 40; i++) yc2 = yc2 + (za - hyp(yc2)) / (PYR_FACE(1) - PYR_FACE(0)); const C = [za, yc2];
+        fr([A, B, C], true); }
+      mb.ea = 0;
+      // the outer face round a recess (kit): a channel 3.2 wide and 0.4 deep from the ground to 0.8 under the top, its
+      // top end sloping with the top, carved sandstone at its back
+      { const z0 = 18.7, z1 = 21.9, D = 0.4, yf = 2.4, /* (its floor just above where the pyramid cuts the face) */ yc = (z) => ytop(z) - 0.8, xb = xo - so * D, face = (Q) => mb.poly(Q.map(([z, y]) => [xo, y, z]), [so, 0, 0], 1);
+        paint(mb, WHITE); face([[2, 0.6], [z0, 0.6], [z0, ytop(z0)], [6.5, 27], [2, 27]]); face([[z1, 0.6], [60, 0.6], [60, ytop(60)], [z1, ytop(z1)]]); face([[z0, yc(z0)], [z1, yc(z1)], [z1, ytop(z1)], [z0, ytop(z0)]]); face([[z0, 0.6], [z1, 0.6], [z1, yf], [z0, yf]]);
+        mb.mat = M.MARBLE; mb.eb = 0; mb.ea = WEATHERED; const W = (p, q, nn) => mb.quad(mb.v(xb, p[1], p[0], ...nn), mb.v(xo, p[1], p[0], ...nn), mb.v(xo, q[1], q[0], ...nn), mb.v(xb, q[1], q[0], ...nn));
+        W([z0, yf], [z0, yc(z0)], [0, 0, 1]); W([z1, yf], [z1, yc(z1)], [0, 0, -1]); W([z0, yc(z0)], [z1, yc(z1)], vnorm([0, -1, -0.35])); // its sides and its sloping top
+        W([z1, yf], [z0, yf], [0, 1, 0]); // its floor
+        mb.eb = GLYPH; mb.ea = 12; mb.poly([[xb, yf, z0], [xb, yf, z1], [xb, yc(z1), z1], [xb, yc(z0), z0]], [so, 0, 0], 1); mb.eb = mb.ea = 0; // its back
+        mb.mat = M.MARBLE; mb.ea = WEATHERED; const g = 0.15; fr([[z0 - g, yf - g], [z1 + g, yf - g], [z1 + g, yc(z1 + g) + g], [z0 - g, yc(z0 - g) + g]], true); mb.ea = 0; } // its frame, round its edge
+    }
   }
+  // the doorway's outline (kit): straight sides, a chamfered top: [hw at the foot .. ys], up to a flat top tw wide at ht
+  const hexo = (hw, ys, ht, tw) => [[hw, 0.6], [hw, ys], [tw, ht], [-tw, ht], [-hw, ys], [-hw, 0.6]];
+  // a flat face (normal along z) filling an x-symmetric outline less an x-symmetric hole, in horizontal bands; R and H
+  // are their right halves climbing (x >= 0); above the hole's top the band runs right across
+  const plateHole = (R, Hh, z, nz) => { const xat = (P, y) => { if (y <= P[0][1]) return P[0][0]; for (let i = 0; i + 1 < P.length; i++) { const a = P[i], b = P[i + 1]; if (y >= a[1] && y <= b[1]) return b[1] - a[1] < 1e-6 ? a[0] : a[0] + (b[0] - a[0]) * (y - a[1]) / (b[1] - a[1]); } return 0; };
+    const top = Hh[Hh.length - 1][1], ys = [...new Set([...R.map((p) => p[1]), ...Hh.map((p) => p[1])])].filter((y) => y >= R[0][1] && y <= R[R.length - 1][1]).sort((p, q) => p - q);
+    const q4 = (A2, B2, C2, D2) => mb.quad(mb.v(A2[0], A2[1], z, 0, 0, nz), mb.v(B2[0], B2[1], z, 0, 0, nz), mb.v(C2[0], C2[1], z, 0, 0, nz), mb.v(D2[0], D2[1], z, 0, 0, nz));
+    for (let i = 0; i + 1 < ys.length; i++) { const a = ys[i], b = ys[i + 1]; if (b - a < 1e-6) continue; const oa = xat(R, a), ob = xat(R, b);
+      if (a >= top - 1e-6) { q4([-oa, a], [oa, a], [ob, b], [-ob, b]); continue; }
+      const ha = xat(Hh, a), hb = xat(Hh, b); q4([-oa, a], [-ha, a], [-hb, b], [-ob, b]); q4([ha, a], [oa, a], [ob, b], [hb, b]); } };
+  const DOOR_F = hexo(1.92, 20.85, 25.4, 0.35), DOOR_B = hexo(1.85, 20.5, 23.7, 0.3), half3 = (P) => P.slice(0, 3); /* (front and back openings, kit) */
+  // a solid from rings of points (convex, same count): its sides between rings, its ends closed
+  const ringLoft = (R) => { const ctr = (P) => P.reduce((s, p) => [s[0] + p[0] / P.length, s[1] + p[1] / P.length, s[2] + p[2] / P.length], [0, 0, 0]);
+    for (let i = 0; i + 1 < R.length; i++) { const A2 = R[i], B2 = R[i + 1], c = ctr([...A2, ...B2]);
+      for (let k = 0; k < A2.length; k++) { const p0 = A2[k], p1 = A2[(k + 1) % A2.length], p2 = B2[(k + 1) % A2.length], p3 = B2[k];
+        let nn = vnorm(vcross([p1[0] - p0[0], p1[1] - p0[1], p1[2] - p0[2]], [p3[0] - p0[0], p3[1] - p0[1], p3[2] - p0[2]])); const m = ctr([p0, p1, p2, p3]);
+        if (nn[0] * (m[0] - c[0]) + nn[1] * (m[1] - c[1]) + nn[2] * (m[2] - c[2]) < 0) nn = nn.map((v) => -v); mb.quad(mb.v(...p0, ...nn), mb.v(...p1, ...nn), mb.v(...p2, ...nn), mb.v(...p3, ...nn)); } }
+    const end = (P, Q) => { const c0 = ctr(P), c1 = ctr(Q), nn = vnorm([c0[0] - c1[0], c0[1] - c1[1], c0[2] - c1[2]]); mb.poly(P, nn, 1); };
+    end(R[0], R[1]); end(R[R.length - 1], R[R.length - 2]); };
   // the arch: a proud sandstone frame, a white panel within, nested door frames, the pointed doorway
-  mb.mat = M.MARBLE; mb.eb = 0; mb.ea = WEATHERED; fq(ogive(8.5, 33.8, 0.6, n, 1.955), -8.6, -6.6); mb.ea = 0;
-  paint(mb, WHITE); fq(ogive(7.0, 33.8, 0.6, n, 2.22), -8.68, -8.6);
+  // the frame: a band 1.5 wide standing 1.5 proud of the white panel (z -7.2), as a ring between the outer and the
+  // inner outline: its front face (quads between the two outlines), its outer and inner reveals
+  { /* the kit's outline (measured on its mesh): plumb to 36, curving in, a short flat top at 48.9 - not pointed */
+    const OR = [[8.45, 0.6], [8.45, 36], [7.6, 38.2], [6.5, 40.5], [5.6, 42.6], [4.5, 44.6], [3.35, 46.3], [2.6, 47.6], [2.1, 48.4], [1.6, 48.9]];
+    const O = [...OR, ...OR.slice().reverse().map(([x, y]) => [-x, y])];
+    const inset = (P, d) => P.map((p, i) => { const a = P[(i - 1 + P.length) % P.length], b = P[(i + 1) % P.length], e1 = [p[0] - a[0], p[1] - a[1]], e2 = [b[0] - p[0], b[1] - p[1]];
+      const l1 = hypot(...e1) || 1, l2 = hypot(...e2) || 1, n1 = [-e1[1] / l1, e1[0] / l1], n2 = [-e2[1] / l2, e2[0] / l2], k = 1 + n1[0] * n2[0] + n1[1] * n2[1];
+      return [p[0] + (n1[0] + n2[0]) / k * d, p[1] + (n1[1] + n2[1]) / k * d]; });
+    const I = inset(O, 1.4); I[0][1] = 0.6; I[I.length - 1][1] = 0.6; const zp = -7.2, zf2 = -7.75; /* (0.55 proud of the panel, as on the kit) */
+    paint(mb, WHITE); plateHole([...I.slice(0, OR.length), [0, I[OR.length - 1][1]]], half3(DOOR_F), zp, -1); // the panel, the doorway cut through it
+    mb.mat = M.MARBLE; mb.eb = 0; mb.ea = WEATHERED; const m = min(O.length, I.length);
+    for (let i = 0; i + 1 < m; i++) mb.quad(mb.v(O[i][0], O[i][1], zf2, 0, 0, -1), mb.v(O[i + 1][0], O[i + 1][1], zf2, 0, 0, -1), mb.v(I[i + 1][0], I[i + 1][1], zf2, 0, 0, -1), mb.v(I[i][0], I[i][1], zf2, 0, 0, -1));
+    const reveal = (R, z0, z1, out) => { for (let i = 0; i + 1 < R.length; i++) { const p = R[i], q = R[i + 1], ex = q[0] - p[0], ey = q[1] - p[1], l = hypot(ex, ey) || 1, nx = ey / l * out, ny = -ex / l * out;
+      mb.quad(mb.v(p[0], p[1], z0, nx, ny, 0), mb.v(q[0], q[1], z0, nx, ny, 0), mb.v(q[0], q[1], z1, nx, ny, 0), mb.v(p[0], p[1], z1, nx, ny, 0)); } };
+    reveal(O, zf2, -6.6, 1); reveal(I, zf2, zp, -1);
+    plateHole([...OR, [0, OR[OR.length - 1][1]]], half3(DOOR_F), -6.6, 1); // the frame's back, closing it against the hall
+    mb.ea = 0; }
   mb.mat = M.MARBLE; mb.eb = mb.ea = 0;
-  for (const [hx, ht] of [[6.0, 29.6], [3.5, 26.4]]) { fq([[-hx, 0.6], [-hx + 0.3, 0.6], [-hx + 0.3, ht], [-hx, ht]], -8.8, -8.68); fq([[hx - 0.3, 0.6], [hx, 0.6], [hx, ht], [hx - 0.3, ht]], -8.8, -8.68); fq([[-hx, ht - 0.3], [hx, ht - 0.3], [hx, ht], [-hx, ht]], -8.8, -8.68); }
-  fq(ogive(2.2, 22.4, 0.6, n, 2.2), -8.9, -8.68); // the doorway's frame
-  paint(mb, BLACK); fq(ogive(1.2, 22.4, 0.6, n, 2.6), -9.0, -8.85); // the doorway: a tall narrow slit
+  for (const [hx, ht] of [[6.15, 30.7], [3.65, 27.45]]) { const w2 = 0.22; /* (kit front elevation: thin lines 0.22 wide) */ fqd([[-hx, 0.6], [-hx + w2, 0.6], [-hx + w2, ht], [-hx, ht]], -7.32, -7.2); fqd([[hx - w2, 0.6], [hx, 0.6], [hx, ht], [hx - w2, ht]], -7.32, -7.2); fqd([[-hx, ht - w2], [hx, ht - w2], [hx, ht], [-hx, ht]], -7.32, -7.2); }
+  // the doorway (kit front elevation): a tall opening, straight sides and a chamfered top (straight slopes up to a short
+  // flat top), in a brown band 0.75 wide standing 0.3 proud; open: a dark passage behind
+  {
+    const O = hexo(2.67, 21.1, 26.1, 0.85), I = DOOR_F, zf = -7.5, zp = -7.2;
+    mb.mat = M.MARBLE; mb.eb = 0; mb.ea = WEATHERED;
+    for (let i = 0; i + 1 < O.length; i++) mb.quad(mb.v(O[i][0], O[i][1], zf, 0, 0, -1), mb.v(O[i + 1][0], O[i + 1][1], zf, 0, 0, -1), mb.v(I[i + 1][0], I[i + 1][1], zf, 0, 0, -1), mb.v(I[i][0], I[i][1], zf, 0, 0, -1));
+    const rv = (R, out) => { for (let i = 0; i + 1 < R.length; i++) { const p = R[i], q = R[i + 1], ex = q[0] - p[0], ey = q[1] - p[1], l = hypot(ex, ey) || 1, nx = ey / l * out, ny = -ex / l * out;
+      mb.quad(mb.v(p[0], p[1], zf, nx, ny, 0), mb.v(q[0], q[1], zf, nx, ny, 0), mb.v(q[0], q[1], zp, nx, ny, 0), mb.v(p[0], p[1], zp, nx, ny, 0)); } };
+    rv(O, 1); rv(I, -1); mb.ea = 0;
+    mb.mat = M.PAVE; mb.box(-1.85, 0.55, -7.5, 1.85, 0.62, 52, 0); /* (the passage's floor, right through to the back) */ } // its threshold running in
   // in the head: the tapered drop, the two bars, a gilt disc with three points round it; a stone disc on the apex
   mb.mat = M.MARBLE; mb.eb = mb.ea = 0;
-  fq([[-1.0, 39.5], [1.0, 39.5], [1.45, 45.6], [-1.45, 45.6]], -8.85, -8.68);
-  fq([[-6.9, 33.2], [-2.4, 33.6], [-2.4, 34.6], [-6.9, 35.0]], -8.85, -8.68); fq([[2.4, 33.6], [6.9, 33.2], [6.9, 35.0], [2.4, 34.6]], -8.85, -8.68);
-  mb.mat = M.GOLD; disc(0, 36.5, 0.9, -8.95, -8.68);
-  for (const [x, y, an] of [[-2.1, 38.1, -0.8], [2.1, 38.1, 0.8], [0, 34.0, PI]]) { const c = cos(an), s2 = sin(an), T = (u, v) => [x + u * c + v * s2, y - u * s2 + v * c]; fq([T(-0.45, -0.35), T(0.45, -0.35), T(0, 0.75)], -8.9, -8.68); }
-  mb.mat = M.MARBLE; mb.ea = WEATHERED; mb.box(-0.5, 48, -8.2, 0.5, 49.7, -7.2, 0); disc(0, 50.9, 1.3, -8.15, -7.25); mb.ea = 0;
-  // the hall roof: a boat-shaped shell lofted from the arch back over 62 m, its top curving down from the head of
-  // the arch, its keel line from 31 m at the front to the ground at the back; red bands along the sides' tops, the
-  // crown in fine transverse red / ochre / blue stripes either side of a plain ridge
-  const L = 62, z0 = -6.6, ns = lod ? 10 : round(L / 0.9), nc = lod ? 3 : 6;
-  const prof = (t) => { // (narrower and lower where it meets the arch, so none of it shows beside the arch's head)
-    const hw = 4.0 + 4.3 * min(1, t / 0.22), yt = 45.5 - 12.9 * (0.6 * t * t * (3 - 2 * t) + 0.4 * t), yb = 31 * (1 - t), ys = yt - 6, Q = [[hw, yb], [hw, ys - 0.9], [hw, ys]];
-    for (let k = 1; k <= nc; k++) { const an = k / nc * PI / 2; Q.push([hw * cos(an), ys + (yt - ys) * sin(an)]); }
-    for (let k = nc - 1; k >= 0; k--) { const an = k / nc * PI / 2; Q.push([-hw * cos(an), ys + (yt - ys) * sin(an)]); }
-    Q.push([-hw, ys - 0.9], [-hw, yb]); return Q;
-  };
-  let A = prof(0);
-  for (let i = 0; i < ns; i++) {
-    const B = prof((i + 1) / ns), za = z0 + L * i / ns, zb = z0 + L * (i + 1) / ns, m = A.length;
-    for (let j = 0; j < m; j++) { // (j = m - 1 closes the underside)
-      const k1 = (j + 1) % m, p0 = [A[j][0], A[j][1], za], p1 = [A[k1][0], A[k1][1], za], q1 = [B[k1][0], B[k1][1], zb], q0 = [B[j][0], B[j][1], zb];
-      const e1 = [p1[0] - p0[0], p1[1] - p0[1], 0], e2 = [q0[0] - p0[0], q0[1] - p0[1], q0[2] - p0[2]];
-      let nn = vnorm([e1[1] * e2[2] - e1[2] * e2[1], e1[2] * e2[0] - e1[0] * e2[2], e1[0] * e2[1] - e1[1] * e2[0]]);
-      if (nn[0] * e1[1] - nn[1] * e1[0] < 0) nn = nn.map((v) => -v); // outward: (ey, -ex) for the counter-clockwise outline
-      const side = j === 0 || j >= m - 2, band = j === 1 || j === m - 3, ridge = abs(j - (m - 2) / 2) < 1.6;
-      // sides and ridge plain sandstone (as on the kit), a red band along the sides' tops, the crown in fine red and
-      // blue pinstripes on the pale sandstone ground
-      const pin = [-1, RED, -1, -1, BLUE, -1][i % 6];
-      if (band) paint(mb, RED); else if (side || ridge || lod || pin < 0) { mb.mat = M.MARBLE; mb.eb = 0; mb.ea = WEATHERED; } else paint(mb, pin);
-      mb.quad(mb.v(...p0, ...nn), mb.v(...p1, ...nn), mb.v(...q1, ...nn), mb.v(...q0, ...nn));
+  // three keys in the head, one shape each: a tapering block 1.2 wide where it starts (by the sun) widening to 2.2 at
+  // the frame, rising as a ramp from 0.1 to the frame's 0.55 where it meets it; an inset line down its middle
+  { const key = (A0, A1, along, across, h0, h1, sh) => { /* h0, h1: half widths at the start and the end; sh: the stripe's half width */ // A0: the start's centre, A1: the end's centre (on the frame), across: unit
+      const z0 = -7.3, z1 = -7.72, zb = -7.2, /* (the end just behind the frame's face) */ c = (p, h, s) => [p[0] + across[0] * h * s, p[1] + across[1] * h * s];
+      const F = [[...c(A0, h0, -1), z0], [...c(A1, h1, -1), z1], [...c(A1, h1, 1), z1], [...c(A0, h0, 1), z0]], Bk = F.map(([x, y]) => [x, y, zb]);
+      const face = (Q) => { let nn = vnorm(vcross([Q[1][0] - Q[0][0], Q[1][1] - Q[0][1], Q[1][2] - Q[0][2]], [Q[3][0] - Q[0][0], Q[3][1] - Q[0][1], Q[3][2] - Q[0][2]]));
+        const m = Q.reduce((s, q) => [s[0] + q[0] / 4, s[1] + q[1] / 4, s[2] + q[2] / 4], [0, 0, 0]), ce = [(A0[0] + A1[0]) / 2, (A0[1] + A1[1]) / 2, -7.4];
+        if (nn[0] * (m[0] - ce[0]) + nn[1] * (m[1] - ce[1]) + nn[2] * (m[2] - ce[2]) < 0) nn = nn.map((v) => -v); mb.quad(mb.v(...Q[0], ...nn), mb.v(...Q[1], ...nn), mb.v(...Q[2], ...nn), mb.v(...Q[3], ...nn)); };
+      mb.mat = M.TRIM; mb.eb = 0; mb.ea = WEATHERED; face(F); face([F[0], F[1], Bk[1], Bk[0]]); face([F[3], F[2], Bk[2], Bk[3]]); face([F[0], F[3], Bk[3], Bk[0]]); mb.ea = 0;
+      mb.mat = M.MARBLE; const L = (u, s) => { const p = [A0[0] + (A1[0] - A0[0]) * u, A0[1] + (A1[1] - A0[1]) * u], z = z0 + (z1 - z0) * u - 0.02; return [p[0] + across[0] * sh * s, p[1] + across[1] * sh * s, z]; };
+      const Ln = [L(0, -1), L(0.995, -1), L(0.995, 1), L(0, 1)]; face(Ln); }; /* the stripe of the frame's stone, the whole length */
+    // (kit front elevation: the top one 2.6 wide at its foot to 3.7 at the frame, a stripe 0.85 wide; the side ones
+    // 2.7 tall by the sun to 4.0 at the frame, a stripe 0.36 tall)
+    key([0, 40.2], [0, 48.25], [0, 1], [1, 0], 1.3, 1.84, 0.42);
+    for (const sx of [-1, 1]) key([sx * 2.03, 34.3], [sx * 7.25, 34.35], [sx, 0], [0, 1], 1.35, 2.0, 0.18); }
+  // the sun (kit): a disc, two three-pointed stars with curved sides above it, a four-pointed one below it, between
+  // the side keys
+  mb.mat = M.GOLD; mb.eb = mb.ea = 0; disc(0, 37.4, 0.93, -7.47, -7.2, false);
+  { const star = (cx, cy, R, tips) => { const T = tips.map((d) => d * PI / 180).sort((p, q) => p - q), P = [], k = lod ? 3 : 7;
+      for (let i = 0; i < T.length; i++) { const a0 = T[i], a1 = i + 1 < T.length ? T[i + 1] : T[0] + 2 * PI;
+        const t0 = [cx + R * cos(a0), cy + R * sin(a0)], t1 = [cx + R * cos(a1), cy + R * sin(a1)], am = (a0 + a1) / 2, rv = 0.36 * R, V = [cx + rv * cos(am), cy + rv * sin(am)];
+          const C = [2 * V[0] - (t0[0] + t1[0]) / 2, 2 * V[1] - (t0[1] + t1[1]) / 2]; /* a curve from tip to tip through the valley: sharp tips, sides curving in */
+          for (let s = 0; s < k; s++) { const f = s / k, g = 1 - f; P.push([g * g * t0[0] + 2 * g * f * C[0] + f * f * t1[0], g * g * t0[1] + 2 * g * f * C[1] + f * f * t1[1]]); } }
+      const zf = -7.42, zb = -7.2, cv = mb.v(cx, cy, zf, 0, 0, -1), F = P.map(([x, y]) => mb.v(x, y, zf, 0, 0, -1));
+      for (let i = 0; i < P.length; i++) mb.tri(cv, F[i], F[(i + 1) % P.length]); // its face, fanned from the centre (star-shaped)
+      for (let i = 0; i < P.length; i++) { const p = P[i], q = P[(i + 1) % P.length], ex = q[0] - p[0], ey = q[1] - p[1], l = hypot(ex, ey) || 1;
+        mb.quad(mb.v(p[0], p[1], zf, ey / l, -ex / l, 0), mb.v(q[0], q[1], zf, ey / l, -ex / l, 0), mb.v(q[0], q[1], zb, ey / l, -ex / l, 0), mb.v(p[0], p[1], zb, ey / l, -ex / l, 0)); } };
+    star(-2.6, 38.95, 1.15, [85, 212, 325]); star(2.6, 38.95, 1.15, [95, 328, 215]); star(0, 34.8, 1.25, [52, 128, 215, 325]); }
+  mb.mat = M.GOLD; mb.eb = mb.ea = 0; ringLoft([[[-1.05, 48.8, -7.45], [1.05, 48.8, -7.45], [0.75, 49.8, -7.45], [-0.75, 49.8, -7.45]], [[-1.05, 48.8, -7.0], [1.05, 48.8, -7.0], [0.75, 49.8, -7.0], [-0.75, 49.8, -7.0]]]); /* the foot under the disc: a trapezoid on the frame's top */
+  disc(0, 50.85, 1.4, -7.5, -7.05); disc(0, 50.85, 1.15, -7.55, -7.45, false); /* (kit mesh: r 1.4, its top 1.0 above the frame's... 2.9 above the cap) */ /* a short stem on the frame's flat top */ /* the medallion on the apex (top at the kit's 53.2), a raised boss on its face */
+  // the hall: a pointed vault 16.6 m wide behind the arch, its walls bowing out a little like a hull; its crown nearly
+  // straight from 48 m at the arch to 35.5 m at the back, 58 m behind, with a slight dip just behind the gate. Bands
+  // following the crown (kit): a plain ridge cap, a band of fine stripes, a band of carved signs, a dark band,
+  // plain sandstone, a band of fine stripes and a plain foot. A pointed doorway in a stepped frame at the back end;
+  // a gilt scroll at each end of the ridge
+  const L = 64, z0 = -6.6, hw = 8.05, nh = lod ? 8 : 32, /* (it runs into the pyramid: cut along its face, below) */ nr = lod ? 8 : 20, Z = (t) => z0 + L * t;
+  const top = (t) => 48.7 - 0.296 * max(0, Z(t) - 0.7); /* straight (kit: 48.7 behind the arch, 0.296 m down per m) */
+  // the section, by depth d below the crown (kit): plumb up to 13, curving in, a cap with a small lip and a flat top
+  const PROF = [[13, 8.05], [11.2, 7.15], [9.6, 6.65], [8.2, 6.14], [7.5, 5.85], [6.2, 5.17], [4.2, 4.13], [2.2, 2.97], [1.55, 2.75], [1.5, 2.95], [1.3, 2.95], [1.2, 2.75], [0.6, 2.4], [0.15, 2.1], [0, 1.85], [0, 0]];
+  const kindD = (d, u) => (d < 1.52 ? 'ridge' : d < 7.5 ? 'stripe' : d < 16 ? 'glyph' : d < 19.5 ? 'dark' : u < 0.04 ? 'foot' : u < 0.12 ? 'stripe' : 'stone');
+  const sec = (t) => { const H = top(t), P = [], add = (x, y) => P.push([x, y, (y - 0.6) / (H - 0.6), H - y]);
+    for (const u of [0, 0.04, 0.12]) add(hw, 0.6 + (H - 0.6) * u); for (const d of [19.5, 16]) add(hw, H - d);
+    for (const [d, x] of PROF) add(x, H - d); return P; };
+  const pig = [RED, OCHRE, WHITE, RED, OCHRE, BLUE, WHITE, OCHRE], sub = lod ? 1 : 10;
+  let A = sec(0);
+  for (let i = 0; i < nh; i++) {
+    const B = sec((i + 1) / nh);
+    for (let j = 0; j + 1 < A.length; j++) {
+      const um = (A[j][2] + A[j + 1][2]) / 2, mk = kindD((A[j][3] + A[j + 1][3]) / 2, um), striped = mk === 'stripe' && !lod;
+      for (let q = 0; q < (striped ? sub : 1); q++) { // stripes: each slice cut into fine coloured strips along the hall
+        const f0 = striped ? q / sub : 0, f1 = striped ? (q + 1) / sub : 1, L2 = (p, r, f) => [p[0] + (r[0] - p[0]) * f, p[1] + (r[1] - p[1]) * f];
+        const a0 = L2(A[j], B[j], f0), a1 = L2(A[j + 1], B[j + 1], f0), b0 = L2(A[j], B[j], f1), b1 = L2(A[j + 1], B[j + 1], f1), za = Z((i + f0) / nh), zb = Z((i + f1) / nh);
+        if (striped) paint(mb, pig[(i * sub + q) % pig.length]); else if (mk === 'dark') { mb.mat = M.BARK; mb.eb = mb.ea = 0; } /* a dull dark brown */
+        else if (mk === 'glyph') { mb.mat = M.MARBLE; mb.eb = GLYPH; mb.ea = 12; } else if (mk === 'ridge') { mb.mat = M.MARBLE; mb.eb = mb.ea = 0; } else { mb.mat = M.MARBLE; mb.eb = 0; mb.ea = WEATHERED; }
+        for (const sx of [-1, 1]) {
+          const p0 = [sx * a0[0], a0[1], za], p1 = [sx * a1[0], a1[1], za], p2 = [sx * b1[0], b1[1], zb], p3 = [sx * b0[0], b0[1], zb];
+          let nn = vnorm(vcross([p1[0] - p0[0], p1[1] - p0[1], p1[2] - p0[2]], [p3[0] - p0[0], p3[1] - p0[1], p3[2] - p0[2]])); const ox = sx * (A[j + 1][1] - A[j][1]), oy = -(A[j + 1][0] - A[j][0]); /* the profile's outward side (right side climbing) */ if (nn[0] * ox + nn[1] * oy < 0) nn = nn.map((v) => -v);
+          const cov = (p) => abs(p[0]) > hw - 0.02 && p[2] >= 3.5 && p[1] <= min(30, 32.275 - 0.35 * p[2]) - 0.02; if (cov(p0) && cov(p1) && cov(p2) && cov(p3)) continue; /* (behind the side wall's raised strip: never seen) */
+          mb.quad(mb.v(...p0, ...nn), mb.v(...p1, ...nn), mb.v(...p2, ...nn), mb.v(...p3, ...nn));
+        }
+      }
+      mb.eb = mb.ea = 0;
     }
     A = B;
   }
-  mb.mat = M.MARBLE; mb.eb = 0; mb.ea = WEATHERED; mb.poly(A.map((p) => [p[0], p[1], z0 + L]), [0, 0, 1], 1); // its back end, closed
-  mb.eb = mb.ea = 0; return mb.build();
+  // its ends: the section's outline round a centre point
+  const cap = (t, d) => { const P = sec(t), H = top(t), z = Z(t), cv = mb.v(0, H * 0.45, z, 0, 0, d), R = P.map(([x, y]) => mb.v(x, y, z, 0, 0, d)), Lf = P.map(([x, y]) => mb.v(-x, y, z, 0, 0, d));
+    for (let k = 0; k < P.length - 1; k++) { mb.tri(cv, R[k], R[k + 1]); mb.tri(cv, Lf[k + 1], Lf[k]); } mb.tri(cv, Lf[0], R[0]); };
+  mb.mat = M.MARBLE; mb.ea = WEATHERED; plateHole(sec(1).map(([x, y]) => [x, y]), half3(DOOR_B), Z(1), 1); plateHole(sec(0).map(([x, y]) => [x, y]), half3(DOOR_F), z0 + 0.02, -1); /* the front end too, just behind the frame's back (the cap's lip reaches a little past the frame) */ mb.ea = 0; /* the back end, the doorway cut through (the front end is the frame's back plate) */
+  // the passage (open right through, kit): its walls and chamfered roof from the front doorway to the back one, facing in
+  { mb.mat = M.MARBLE; mb.eb = mb.ea = 0; const A2 = DOOR_F.map(([x, y]) => [x, y, -7.2]), B2 = DOOR_B.map(([x, y]) => [x, y, Z(1)]);
+    for (let i = 0; i + 1 < A2.length; i++) { const p0 = A2[i], p1 = A2[i + 1], p2 = B2[i + 1], p3 = B2[i]; let nn = vnorm(vcross([p1[0] - p0[0], p1[1] - p0[1], p1[2] - p0[2]], [p3[0] - p0[0], p3[1] - p0[1], p3[2] - p0[2]]));
+      const mx = (p0[0] + p1[0]) / 2, my = (p0[1] + p1[1]) / 2; if (nn[0] * (0 - mx) + nn[1] * (12 - my) < 0) nn = nn.map((v) => -v); mb.quad(mb.v(...p0, ...nn), mb.v(...p1, ...nn), mb.v(...p2, ...nn), mb.v(...p3, ...nn)); } }
+  // the back doorway (kit): the front one's shape, a little lower, in a brown band 0.75 wide standing 0.3 proud
+  { const O = hexo(2.6, 20.7, 24.5, 0.8), I = DOOR_B, z1 = Z(1), zf = z1 + 0.3; mb.mat = M.MARBLE; mb.eb = 0; mb.ea = WEATHERED;
+    for (let i = 0; i + 1 < O.length; i++) mb.quad(mb.v(O[i][0], O[i][1], zf, 0, 0, 1), mb.v(O[i + 1][0], O[i + 1][1], zf, 0, 0, 1), mb.v(I[i + 1][0], I[i + 1][1], zf, 0, 0, 1), mb.v(I[i][0], I[i][1], zf, 0, 0, 1));
+    const rv = (R, out) => { for (let i = 0; i + 1 < R.length; i++) { const p = R[i], q = R[i + 1], ex = q[0] - p[0], ey = q[1] - p[1], l = hypot(ex, ey) || 1, nx = ey / l * out, ny = -ex / l * out;
+      mb.quad(mb.v(p[0], p[1], z1, nx, ny, 0), mb.v(q[0], q[1], z1, nx, ny, 0), mb.v(q[0], q[1], zf, nx, ny, 0), mb.v(p[0], p[1], zf, nx, ny, 0)); } };
+    rv(O, 1); rv(I, -1); mb.ea = 0; }
+
+  // the medallion's gilt base (kit mesh): a block 2.4 wide behind the disc, its top falling back in a concave sweep from
+  // just under the disc's top down onto the ridge cap 4.6 m behind it
+  { const PR = [[-7.0, 50.9], [-6.5, 50.69], [-6.0, 50.45], [-5.5, 50.22], [-5.0, 49.82], [-4.5, 49.62], [-4.0, 49.49], [-3.5, 49.24], [-3.0, 49.0], [-2.4, 48.76]];
+    mb.mat = M.GOLD; mb.eb = 0; mb.ea = 20; ringLoft(PR.map(([z, y]) => [[-1.2, 48.4, z], [1.2, 48.4, z], [1.2, y, z], [-1.2, y, z]])); mb.ea = 0; }
+  // the gilt horn at the back end (kit): lying on the cap, then curving up and out, waisted in the middle and flared
+  // at the tip
+  if (!lod) { let zr = 40; for (let i = 0; i < 40; i++) zr = PYR_FACE(top((zr - z0) / L)); /* where the ridge meets the pyramid */ const z1 = zr - 1.6, H = top((z1 - z0) / L), path = [[H + 0.1, z1 - 2.2], [H + 0.2, z1 - 0.9], [H + 0.55, z1 + 0.2], [H + 1.2, z1 + 0.95], [H + 1.9, z1 + 1.3], [H + 2.3, z1 + 1.35]];
+    const wid = [1.7, 1.45, 1.05, 1.0, 1.35, 1.75], thk = [1.0, 0.95, 0.85, 0.8, 0.8, 0.75], R = [];
+    for (let i = 0; i < path.length; i++) { const p = path[i], q = path[min(i + 1, path.length - 1)], o = path[max(i - 1, 0)], ty = q[0] - o[0], tz = q[1] - o[1], l = hypot(ty, tz), ny = tz / l, nz = -ty / l, w = wid[i] / 2, h = thk[i] / 2;
+      R.push([[-w, p[0] - ny * h, p[1] - nz * h], [w, p[0] - ny * h, p[1] - nz * h], [w, p[0] + ny * h, p[1] + nz * h], [-w, p[0] + ny * h, p[1] + nz * h]]); }
+    mb.mat = M.GOLD; mb.eb = 0; mb.ea = 20; ringLoft(R); }
+  mb.eb = mb.ea = 0; return clipPyramid(mb.build());
 }
 // the kit complex's terrace building (BuildingC, ~2.4x), measured off the kit's plan and elevations. Its front (the
 // pavilions) faces +x, its back runs into the pyramid; origin at its block's centre, on the ground.
@@ -839,33 +1132,62 @@ function meshEnclosure(h, lod, gate = KP.gateX) {
   // runs along x carry on t past both ends to close the corners (their end a hair proud of the cross wall's face);
   // runs along z stop their footing and piers short at joined ends (j0: the end at the lower coordinate, j1 the upper),
   // so no two runs share a face anywhere (that flickered)
-  const run = (x0, z0, x1, z1, piers = true, j0 = true, j1 = true) => {
+  const run = (x0, z0, x1, z1, piers = true, j0 = true, j1 = true, si = 0, e0 = '', e1 = '') => { // si: the court side (+1/-1 along the run's normal; 0: none)
+    // e0/e1 (runs along z): how the cross run meets that end - 'in': its court side faces this run, 'out': away. The
+    // court-side pieces stop there at the cross run's own (no two runs share space at a corner)
     const L0 = hypot(x1 - x0, z1 - z0), alongX0 = abs(x1 - x0) > abs(z1 - z0), L = alongX0 ? L0 + 2 * (t + 0.02) : L0, cx = (x0 + x1) / 2, cz = (z0 + z1) / 2, alongX = abs(x1 - x0) > abs(z1 - z0);
+    const tiE = t * 0.3, cut = (e, up) => (alongX ? 0 : e === 'in' ? (up ? tiE : t * 0.92 + 1.6 + 0.12) : e === 'out' ? (up ? t * 0.92 : 0) : 0);
+    const U0 = -L / 2 + cut(e0, 1), U1 = L / 2 - cut(e1, 1), W0 = -L0 / 2 + cut(e0, 0), W1 = L0 / 2 - cut(e1, 0); // the upper (thin wall, crest, teeth) and the lower (lower wall, coping) court-side limits
     const B = (u0, u1, d, y0, y1, bev = 0, o = 0) => alongX ? mb.box(cx + u0, y0, cz + o - d, cx + u1, y1, cz + o + d, bev) : mb.box(cx + o - d, y0, cz + u0, cx + o + d, y1, cz + u1, bev);
-    const T = (u, a0, a1, d0, d1, y0, y1) => alongX ? frustum(mb, cx + u, cz, a0, d0, a1, d1, y0, y1, true) : frustum(mb, cx, cz + u, d0, a0, d1, a1, y0, y1, true);
+    // a box like B but without the faces nobody sees: sk holds 'b' (its back: the face toward the wall's line), 'f' (its
+    // front), 'd' (its foot), 'u' (its top)
+    const Bd = (u0, u1, d, y0, y1, o, sk) => { const s = o > 0 ? 1 : o < 0 ? -1 : 0, n0 = o - d, n1 = o + d, P = (q, nn, y) => (alongX ? [cx + q, y, cz + nn] : [cx + nn, y, cz + q]);
+      const N = (nn) => (alongX ? [0, 0, nn] : [nn, 0, 0]), U = (q) => (alongX ? [q, 0, 0] : [0, 0, q]), F = (a, b2, c, e, nm) => mb.quad(mb.v(...a, ...nm), mb.v(...b2, ...nm), mb.v(...c, ...nm), mb.v(...e, ...nm));
+      if (!(sk.includes('b') && s < 0) && !(sk.includes('f') && s > 0)) F(P(u0, n1, y0), P(u1, n1, y0), P(u1, n1, y1), P(u0, n1, y1), N(1)); // the +normal face
+      if (!(sk.includes('b') && s > 0) && !(sk.includes('f') && s < 0)) F(P(u0, n0, y0), P(u1, n0, y0), P(u1, n0, y1), P(u0, n0, y1), N(-1)); // the -normal face
+      if (!sk.includes('u')) F(P(u0, n0, y1), P(u1, n0, y1), P(u1, n1, y1), P(u0, n1, y1), [0, 1, 0]); if (!sk.includes('d')) F(P(u0, n0, y0), P(u1, n0, y0), P(u1, n1, y0), P(u0, n1, y0), [0, -1, 0]);
+      F(P(u0, n0, y0), P(u0, n1, y0), P(u0, n1, y1), P(u0, n0, y1), U(-1)); F(P(u1, n0, y0), P(u1, n1, y0), P(u1, n1, y1), P(u1, n0, y1), U(1)); };
+    const T = (u, a0, a1, d0, d1, y0, y1, off = 0) => alongX ? frustum(mb, cx + u, cz + off, a0, d0, a1, d1, y0, y1, true) : frustum(mb, cx + off, cz + u, d0, a0, d1, a1, y0, y1, true);
     // footing (its ends run on past the corners, so the corners close)
     const FT = (trim, d0, d1, y0, y1) => { const a = alongX ? -L0 / 2 - t - 3.02 : -L0 / 2 + (j0 ? trim : -2.5), b = alongX ? L0 / 2 + t + 3.02 : L0 / 2 - (j1 ? trim : -2.5); T((a + b) / 2, (b - a) / 2, (b - a) / 2, d0, d1, y0, y1); };
     mb.mat = M.MARBLE; mb.ea = WEATHERED; FT(t + 3.0, t + 3.0, t + 2.5, -2, 0.3); FT(t + 2.1, t + 2.5, t + 2.1, 0.3, 1.6); mb.ea = 0;
     mb.mat = M.MARBLE; mb.eb = GLYPH; mb.ea = 20; frustum(mb, cx, cz, alongX ? L / 2 : t, alongX ? t : L / 2, alongX ? L / 2 : t * 0.92, alongX ? t * 0.92 : L / 2, 1.6, hb, false); mb.eb = mb.ea = 0;
-    paint(mb, WHITE); B(-L / 2, L / 2, t * 0.92, hb, hn); mb.ao = 0.42; B(-L / 2, L / 2, t * 0.3, hn, h - 0.04); mb.ao = 1; /* (its top 4 cm under the merlons': no shared plane) */
-    for (const sd of [-1, 1]) { paint(mb, RED); B(-L / 2, L / 2, 0.06, hb - 0.75, hb - 0.55, 0, sd * (t * 0.94)); B(-L / 2, L / 2, 0.06, 1.95, 2.15, 0, sd * (t * 0.99)); }
+    paint(mb, WHITE); const yT = h * 0.765, ti = t * 0.3; /* (court side: above the lower wall's top the wall stops at the teeth's inner edge, ti from its line) */
+    if (si) { Bd(-L / 2, L / 2, t * 0.92, hb, yT, 1e-9 * si, 'fd'); B(U0, U1, (t * 0.92 + ti) / 2, yT, hn, 0, -si * (t * 0.92 - ti) / 2);
+      if (alongX) for (const [a, b] of [[-L / 2, -L0 / 2], [L0 / 2, L / 2]]) { const n = cz + si * t * 0.92, P = (q, y) => [cx + q, y, n]; mb.quad(mb.v(...P(a, hb), 0, 0, si), mb.v(...P(b, hb), 0, 0, si), mb.v(...P(b, yT), 0, 0, si), mb.v(...P(a, yT), 0, 0, si)); } } /* (its court face past the lower wall's ends: where no wall covers it) */ else Bd(-L / 2, L / 2, t * 0.92, hb, hn, 0, 'd'); /* (court side: its face there inside the lower wall) */ if (si) { // (court side) the sandstone crest: its face in the gaps between the teeth a ramp, 0.3 behind the teeth's face at their
+      // foot back to 0.3 t from the wall's line at the top (kit: the stone at the back of each gap slopes)
+      const ob = -si * (t * 0.92 - 0.3), ot = -si * t * 0.3, ii = si * t * 0.3, Q = [[ii, hn], [ob, hn], [ot, h - 0.04], [ii, h - 0.04]];
+      const Qc = si > 0 ? Q.slice().reverse() : Q; /* (extrude wants it counter-clockwise) */ unpaint(mb, M.TRIM); if (alongX) extrudeX(mb, Q.map(([q, y]) => [cz + q, y]), cx - L / 2, cx + L / 2); else extrude(mb, Qc.map(([q, y]) => [cx + q, y]), 0, cz + U0, cz + U1); paint(mb, WHITE); } else { mb.ao = 0.42; B(-L / 2, L / 2, t * 0.3, hn, h - 0.04); mb.ao = 1; } /* (court side: its inner part is the crest itself, a continuous sandstone coping, kit) */ /* (its top 4 cm under the merlons': no shared plane) */
+    for (const sd of [-1, 1]) { if (sd === si) continue; /* (the court side: the lower wall below) */ paint(mb, RED); Bd(-L / 2, L / 2, 0.06, hb - 0.75, hb - 0.55, sd * (t * 0.94), 'b'); Bd(-L / 2, L / 2, 0.06, 1.95, 2.15, sd * (t * 0.99), 'b'); }
     const nb = max(1, round(L / 14));
     for (let i = 0; i <= nb; i++) {
       const u = -L / 2 + i * L / nb;
-      for (const sd of [-1, 1]) {
-        paint(mb, RED); B(u - 1.12, u - 0.92, 0.08, 2.0, hb - 0.6, 0, sd * (t * 0.97)); B(u + 0.92, u + 1.12, 0.08, 2.0, hb - 0.6, 0, sd * (t * 0.97));
-        paint(mb, WHITE); B(u - 0.8, u + 0.8, 0.2, 1.6, hb - 0.3, 0, sd * (t * 0.96)); unpaint(mb, M.TRIM); B(u - 1.0, u + 1.0, 0.26, hb - 0.55, hb - 0.2, 0, sd * (t * 0.96));
+      for (const sd of [-1, 1]) { if (sd === si) continue;
+        paint(mb, RED); Bd(u - 1.12, u - 0.92, 0.08, 2.0, hb - 0.6, sd * (t * 0.97), 'b'); Bd(u + 0.92, u + 1.12, 0.08, 2.0, hb - 0.6, sd * (t * 0.97), 'b');
+        paint(mb, WHITE); Bd(u - 0.8, u + 0.8, 0.2, 1.6, hb - 0.3, sd * (t * 0.96), 'bd'); unpaint(mb, M.TRIM); Bd(u - 1.0, u + 1.0, 0.26, hb - 0.55, hb - 0.2, sd * (t * 0.96), 'b');
       }
     }
+    // the court side (kit mesh): a lower wall 1.6 thick against it, its top at 0.765 h, with engaged pilasters every
+    // 15.8 m: 2.9 wide, 0.85 proud, on a base, a gilt ring under the lower wall's top, a flared capital whose top slab
+    // reaches back over the lower wall to the wall's face, at 0.93 h
+    if (si) { const f0 = t * 0.92, fI = f0 + 1.6, yC = h * 0.93, o = (d0, d1) => si * (d0 + d1) / 2, dd = (d0, d1) => (d1 - d0) / 2;
+      paint(mb, WHITE); Bd(W0, W1, dd(f0 - 0.05, fI), 1.6, yT, o(f0 - 0.05, fI), 'bdu'); unpaint(mb, M.TRIM); Bd(W0, W1, dd(f0 - 0.05, fI + 0.12), yT, yT + 0.18, o(f0 - 0.05, fI + 0.12), 'bd'); // the lower wall, its coping
+      const npl = max(1, round(L0 / 15.8));
+      for (let i = 0; i < npl; i++) { const u = -L0 / 2 + (i + 0.5) * L0 / npl;
+        unpaint(mb, M.TRIM); B(u - 1.6, u + 1.6, dd(fI - 0.1, fI + 1.1), 1.6, 2.5, lod ? 0 : 0.05, o(fI - 0.1, fI + 1.1)); // its base
+        Bd(u - 1.45, u + 1.45, dd(fI - 0.1, fI + 0.85), 2.5, yT - 0.2, o(fI - 0.1, fI + 0.85), 'bdu'); // its shaft
+        mb.mat = M.GOLD; mb.eb = mb.ea = 0; Bd(u - 1.5, u + 1.5, dd(fI - 0.1, fI + 0.92), yT - 0.75, yT - 0.55, o(fI - 0.1, fI + 0.92), 'b'); // the gilt ring
+        unpaint(mb, M.TRIM); Bd(u - 1.6, u + 1.6, dd(fI - 0.1, fI + 1.0), yT - 0.2, yT + 0.18, o(fI - 0.1, fI + 1.0), 'bu'); Bd(u - 1.6, u + 1.6, dd(ti - 0.05, fI + 1.0), yT + 0.18, yT + 0.6, o(ti - 0.05, fI + 1.0), 'bdu'); Bd(u - 1.8, u + 1.8, dd(ti - 0.05, fI + 1.2), yT + 0.6, yC - 0.45, o(ti - 0.05, fI + 1.2), 'bu'); // the capital, flaring; above the lower wall's coping it runs back to the wall's face (no void under its slab)
+        Bd(u - 1.95, u + 1.95, dd(ti - 0.05, fI + 1.3), yC - 0.45, yC, o(ti - 0.05, fI + 1.3), 'b'); } } // its top slab, back to the wall's (thinned) face
     const nm = max(1, round(L / 7.2)), p = L / nm; paint(mb, WHITE);
-    for (let i = 0; i < nm; i++) T(-L / 2 + (i + 0.5) * p, p * 0.375, p * 0.3, t * 0.92, t * 0.92, hn, h);
+    for (let i = 0; i < nm; i++) { const u = -L / 2 + (i + 0.5) * p; if (si && (u - p * 0.375 < U0 - 0.01 || u + p * 0.375 > U1 + 0.01)) continue; /* (a tooth that would run into the cross run) */ if (si) T(u, p * 0.375, p * 0.3, (t * 0.92 + ti) / 2, (t * 0.92 + ti) / 2, hn, h, -si * (t * 0.92 - ti) / 2); else T(u, p * 0.375, p * 0.3, t * 0.92, t * 0.92, hn, h); } // the teeth (court side: on the outer part only)
     if (piers) { const np = max(1, round(L / 48)); for (let i = 0; i <= np; i++) { if (!alongX && ((i === 0 && j0) || (i === np && j1))) continue; /* (the cross run's pier stands there) */ const u = -L0 / 2 + i * L0 / np; paint(mb, WHITE); B(u - 1.8, u + 1.8, t + 0.4, 0, h + 0.6); unpaint(mb, M.TRIM); B(u - 2.1, u + 2.1, t + 0.7, h + 0.6, h + 1.1, lod ? 0 : 0.06); /* (barely above the crest, as on the kit) */ } }
     mb.eb = mb.ea = 0;
   };
   const { wallW: W, wallE: E, wallZ: Z, bumpX: X, bumpZ: J, gapZ: G } = KP;
-  run(E, Z, W, Z); run(E, -Z, -gate, -Z); run(gate, -Z, W, -Z); run(W, -Z, W, Z); // north, south (the entrance's gap), west
-  run(E, -Z, E, -J); run(E, J, E, Z); // east, stopping at the bay's side walls (the bay is open to the court)
-  run(X, -J, E, -J, false); run(X, J, E, J, false); run(X, -J, X, -G, false, true, false); run(X, G, X, J, false, false, true); // the bay; the pavilions fill its middle
+  run(E, Z, W, Z, true, true, true, -1); run(E, -Z, -gate, -Z, true, true, true, 1); run(gate, -Z, W, -Z, true, true, true, 1); run(W, -Z, W, Z, true, true, true, -1, 'in', 'in'); // north, south (the entrance's gap), west (si: the court's side)
+  run(E, -Z, E, -J, true, true, true, 1, 'in', 'out'); run(E, J, E, Z, true, true, true, 1, 'out', 'in'); // east, stopping at the bay's side walls (the bay is open to the court)
+  run(X, -J, E, -J, false, true, true, 1); run(X, J, E, J, false, true, true, -1); run(X, -J, X, -G, false, true, false, 1, 'in', ''); run(X, G, X, J, false, false, true, 1, '', 'in'); // the bay (its court side toward the terrace inside it); the pavilions fill its middle
   return mb.build();
 }
 // the far complex's plan, measured off the kit (tools/kitlab/pyr_plan.py, reference/kb3d/plan/plan.json)

@@ -63,6 +63,9 @@ canvas:active { cursor: grabbing; }
   <label><input type=checkbox id=overlay> Sobrepor a foto do kit</label>
   <label>Opacidade <input type=range id=opacity min=0 max=100 value=50></label>
   <label>Foto <select id=refSel style="flex:1;min-width:0"></select></label>
+  <label><input type=checkbox id=camSync checked> Mesma câmera da foto</label>
+  <label>Modo <select id=ovMode style="flex:1"><option value=mix>Mistura (opacidade)</option><option value=diff>Diferença (o que não bate brilha)</option><option value=wipe>Cortina (arraste a barra)</option></select></label>
+  <p class=sub><b>[</b> <b>]</b>: foto anterior / próxima · a foto escolhida põe o nosso modelo na mesma câmera quando a peça tem a posição do kit</p>
   <h2>Checagens</h2>
   <label><input type=checkbox id=backs checked> Faces faltando em magenta</label>
   <p class=legend><i></i>interior visível = face ausente ou virada</p>

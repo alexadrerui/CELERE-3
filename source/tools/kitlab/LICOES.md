@@ -146,7 +146,28 @@ Leia antes de mexer em qualquer modelo do kit, e siga o checklist no fim antes d
 - Vale a regra 5 também para peças empilhadas lado a lado: se duas peças chegam à mesma altura, uma fica pelo menos
   2–4 cm abaixo. Conferir olhando de cima, ao longo do topo do muro.
 
-## 11. Crítico no Kit Lab: no mínimo 2 rodadas
+## 11. Faixas e detalhes: peça única, colados na superfície, completos
+
+**O que aconteceu (entrada do complexo):**
+- A faixa vermelha e a de hieróglifos da torre paravam antes da quina, e a da face lateral começava depois: duas peças
+  soltas em vez de uma faixa contornando o bloco.
+- As listras coloridas da cornija eram caixas verticais em z fixo, enquanto a cornija é inclinada: flutuavam na frente
+  dela e só existiam numa face.
+- A trava de pedra e o nicho da face externa seguiam a inclinação da torre, mas no kit a trava pende no prumo e o fundo
+  do nicho é reto (só a moldura segue a inclinação).
+
+**Regra:**
+- Faixas (pintadas, entalhadas, listradas) são **uma peça só**: contornam as quinas e encontram a faixa da face
+  vizinha exatamente na aresta. A espessura delas tem que ser maior que a dos filetes que passam por cima, senão o
+  filete as corta.
+- Detalhes sobre uma superfície (listras, frisos, inscrições) são desenhados **sobre** ela: seguem a inclinação ou a
+  curva dela (normal e pontos calculados na própria face) e ficam 2–3 cm à frente. Nunca caixas retas em frente a uma
+  face inclinada.
+- Um detalhe que existe numa face existe em **todas** as faces onde o kit o tem (cornija: as quatro).
+- Antes de fazer algo seguir a inclinação de um bloco, conferir no kit se aquela peça segue a inclinação ou fica no
+  prumo (travas, fundos de nicho, pilares costumam ficar no prumo).
+
+## 12. Crítico no Kit Lab: no mínimo 2 rodadas
 
 **O que aconteceu:**
 - Modelos foram dados como prontos depois de uma conferência minha só. O usuário então achou defeitos que um
@@ -193,6 +214,7 @@ node tools/kitlab/shots/kitlab_look.mjs  <pasta> complex "nome:ex,ey,ez,ax,ay,az
 - [ ] Nada apoiado no chão sem base enterrada ≥ 2 m.
 - [ ] Nenhuma face coplanar (afastamento ≥ 2 cm).
 - [ ] Efeitos por altura (areia, poeira, umidade) presos ao chão do lugar, conferidos em vários pontos do complexo.
+- [ ] Faixas contínuas nas quinas; detalhes colados na superfície que decoram, em todas as faces; prumo vs. inclinação conferido no kit.
 - [ ] Nenhum trecho atravessando outro elemento.
 - [ ] Página do Kit Lab e `dev.html` sem erros de sintaxe nem de WGSL.
 - [ ] Crítico no Kit Lab: **≥ 2 rodadas**, a última sem nada acima de Menor (ou limitações registradas).
@@ -206,3 +228,22 @@ npm run kitlab:build
 node -e "const fs=require('fs');const h=fs.readFileSync('tools/kitlab/kitlab.html','utf8');fs.writeFileSync('kl_check.js',h.split('<script>')[1].split('</script>')[0])"
 node --check kl_check.js && del kl_check.js
 ```
+
+## 13. Compare in the kit's own camera
+
+Every close photo session (`part_closeups.py`, `<Part>_closeups.json` in any `reference/kb3d/` folder) shows up in the
+Kit Lab's photo list, grouped (orbit by height, eye level, each face near/far, elevations). Choosing one puts our model
+in the very same camera when the model has `kitXform` (the kit's point at our origin, see the entrance's entry); `[` `]`
+step through them. Overlay modes: Mistura (opacity), Diferença (what doesn't match lights up), Cortina (a wipe bar).
+Before saying a part matches, check it in at least one close face photo and one eye-level photo, not only the elevations.
+New sessions record each camera in the JSON; older ones are worked out from the shot names and the framed box.
+
+## 14. No faces nobody sees
+
+Faces that are never visible still cost memory and draw time. After a model's shape is settled, run
+`node tools/kitlab/audit_hidden.mjs <model> [lod]` (with the Kit Lab server up): it renders every triangle by its
+number from 600 directions (outside, round it at eye level and above, along the passage) and lists those never seen,
+by place, material and normal. Typical waste, now avoided in the entrance: decorations glued to a wall keep their back
+(use `fqd`, or a key without its back face); a wall behind a block that covers it; a bowl's bottom on its slab; the part
+of a face under a collar. Remove at the source, then re-run the magenta check: a removed face can open a hole
+(e.g. the cut's lid needs every solid's outline where the pyramid cuts it).

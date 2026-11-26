@@ -160,15 +160,36 @@ function refForView() {
   if (model.orbit && view.startsWith('az')) { const a = Math.round(+view.slice(2, 5) / model.orbit.step) * model.orbit.step; return `part_${model.kit}_az${String(a).padStart(3, '0')}_el${String(model.orbit.el).padStart(2, '0')}.png`; }
   return view.startsWith('az') ? `part_${model.kit}_${view}_el22.png` : `part_${model.kit}_ortho_${view}.png`;
 }
-function refreshRef(file) {
-  const sel = $('refSel'), L = refFiles(); sel.innerHTML = L.map((f) => `<option>${f}</option>`).join('');
-  const f = file || refForView(); if (f) sel.value = f; showRef(f && L.includes(f) ? f : '');
+// every photo for the model: the part's set (above) and its close photo sessions (KIT_SHOTS), with their cameras
+let REFS = new Map();
+function refList() {
+  const L = refFiles().map((f) => ({ f, g: 'Fotos da peça', dir: refDir() }));
+  const GN = (f) => { let m; if ((m = f.match(/_orbit_az\d+_el(\d+)/))) return `Órbita ${+m[1]}°`; if (/_eye_/.test(f)) return 'Altura dos olhos'; if (/_ortho_/.test(f)) return 'Elevações (orto)';
+    if ((m = f.match(/_face_(\w+?)_\d\d_(near|far)/))) return `Face ${{ front: 'frontal', back: 'de trás', left: 'esquerda', right: 'direita' }[m[1]]} · ${m[2] === 'near' ? 'perto' : 'longe'}`; return 'Sessão de perto'; };
+  if (model && model.kit && KIT_SHOTS[model.kit]) for (const s of KIT_SHOTS[model.kit]) for (const h of s.shots) L.push({ f: h.f, g: GN(h.f), dir: s.dir, cam: h.cam, note: h.note });
+  REFS = new Map(L.map((r) => [r.f, r])); return L;
 }
+function refreshRef(file) {
+  const sel = $('refSel'), L = refList(); let h = '', g = null;
+  for (const r of L) { if (r.g !== g) { h += (g === null ? '' : '</optgroup>') + `<optgroup label="${r.g}">`; g = r.g; } h += `<option value="${r.f}">${r.f.replace(/^part_|\.png$/g, '')}</option>`; }
+  sel.innerHTML = h + (g === null ? '' : '</optgroup>');
+  const f = file || refForView(); if (f) sel.value = f; showRef(f && REFS.has(f) ? f : '');
+}
+// our camera onto a kit photo's: Blender world (z up, front -y) into the model's frame (model.kitXform: the kit point
+// at our origin, c = [x, y]; o = our offset), x2.4 and mirrored in x as everywhere here
+function kitCam(r) {
+  const X = model && model.kitXform; if (!r || !r.cam || !X || !cur) return false; const S = KIT_SCALE;
+  const P = ([x, y, z]) => [-(x - X.c[0]) * S + X.o[0], z * S + X.o[1], (y - X.c[1]) * S + X.o[2]], e = P(r.cam.loc), t2 = P(r.cam.tgt), d = [e[0] - t2[0], e[1] - t2[1], e[2] - t2[2]];
+  cam.tgt = t2; cam.dist = hypot(...d); cam.pit = Math.asin(d[1] / cam.dist); cam.yaw = Math.atan2(d[0], -d[2]);
+  if (r.cam.ortho) { cam.ortho = true; cam.oscale = r.cam.ortho * S; } else { cam.ortho = false; cam.fovY = 2 * Math.atan(13.5 / r.cam.lens); }
+  view = ''; syncButtons(); redraw(); return true;
+}
+function pickRef(f) { showRef(f); const r = REFS.get(f); if ($('camSync').checked) kitCam(r); }
 function showRef(f) {
   const img = $('ref'), over = $('over'), empty = $('refEmpty');
   if (!f) { img.removeAttribute('src'); over.removeAttribute('src'); empty.textContent = model && model.kit ? 'Sem foto do kit para esta vista' : 'Este modelo não tem peça correspondente no kit'; $('refTag').textContent = 'Kit original'; return; }
-  empty.textContent = ''; img.className = ''; img.onerror = () => { img.className = 'missing'; empty.textContent = `Foto não encontrada em ${refDir().replace('../../../', '')}\n(as renders do kit ficam só no seu computador)`; };
-  img.src = refDir() + f; over.src = refDir() + f; $('refTag').textContent = 'Kit original · ' + f.replace('.png', '');
+  empty.textContent = ''; img.className = ''; img.onerror = () => { img.className = 'missing'; empty.textContent = `Foto não encontrada em ${((REFS.get(f) || {}).dir || refDir()).replace('../../../', '')}\n(as renders do kit ficam só no seu computador)`; };
+  const r = REFS.get(f), dir = (r && r.dir) || refDir(); img.src = dir + f; over.src = dir + f; $('refTag').textContent = 'Kit original · ' + f.replace('.png', '') + (r && r.note ? ' · ' + r.note : '');
 }
 
 // UI
@@ -216,9 +237,17 @@ function syncButtons() {
   for (const b of document.querySelectorAll('#azs [data-c]')) b.style.display = model && model.kit === 'complex' ? '' : 'none';
 }
 $('views').onclick = $('azs').onclick = (e) => { const b = e.target.closest('button'); if (!b) return; if (b.dataset.v === 'low') { complexLow = !complexLow; setView(view.startsWith('az') ? view : 'az045'); } else if (model && model.kit === 'complex' && !b.dataset.v.startsWith('az') && b.dataset.v !== 'top') return; else setView(b.dataset.v); };
-$('refSel').onchange = (e) => showRef(e.target.value);
-$('overlay').onchange = () => { $('panes').classList.toggle('over', $('overlay').checked); $('refPane').style.display = $('overlay').checked ? 'none' : ''; fitFrames(); $('over').style.opacity = $('overlay').checked ? $('opacity').value / 100 : 0; redraw(); };
-$('opacity').oninput = () => { if ($('overlay').checked) $('over').style.opacity = $('opacity').value / 100; };
+$('refSel').onchange = (e) => pickRef(e.target.value);
+$('camSync').onchange = () => { if ($('camSync').checked) kitCam(REFS.get($('refSel').value)); };
+addEventListener('keydown', (e) => { if (e.key !== '[' && e.key !== ']') return; const s = $('refSel'), n = s.options.length; if (!n) return; s.selectedIndex = (s.selectedIndex + (e.key === ']' ? 1 : n - 1)) % n; pickRef(s.value); });
+// the overlay: a mix (opacity), the difference (where the two disagree it lights up) or a curtain (the photo on the
+// right of the bar, ours on the left)
+function overStyle() { const o = $('over'), on = $('overlay').checked, md = $('ovMode').value, v = $('opacity').value;
+  o.style.mixBlendMode = on && md === 'diff' ? 'difference' : 'normal'; o.style.clipPath = on && md === 'wipe' ? `inset(0 0 0 ${v}%)` : 'none';
+  o.style.opacity = !on ? 0 : md === 'mix' ? v / 100 : 1; $('opacity').title = md === 'wipe' ? 'posição da cortina' : 'opacidade'; }
+$('ovMode').onchange = overStyle;
+$('overlay').onchange = () => { $('panes').classList.toggle('over', $('overlay').checked); $('refPane').style.display = $('overlay').checked ? 'none' : ''; fitFrames(); overStyle(); redraw(); };
+$('opacity').oninput = overStyle;
 for (const id of ['backs', 'wire', 'ground']) $(id).onchange = redraw;
 $('lod').onchange = () => { const v = view; pick(model); if (model.build) setView(v); };
 
@@ -247,7 +276,7 @@ function info() {
 }
 // look(eye, target): a free camera (for tests and for sharing a view); also mb.find(): where the magenta pixels are
 const look = (e, t) => { cam.ortho = false; cam.fovY = 2 * Math.atan(13.5 / 35); cam.tgt = t.slice(); const d = [e[0] - t[0], e[1] - t[1], e[2] - t[2]]; cam.dist = hypot(...d); cam.pit = Math.asin(d[1] / cam.dist); cam.yaw = Math.atan2(d[0], -d[2]); view = ''; syncButtons(); redraw(); };
-window.__kitlab = { pick: (id) => pick(MODELS.find((m) => m.id === id)), setView, look, models: MODELS.map((m) => m.id) };
+window.__kitlab = { pick: (id) => pick(MODELS.find((m) => m.id === id)), build: (id, l = 0) => MODELS.find((m) => m.id === id).build(l), /* (for the audits: a model's mesh) */ setView, look, photo: (f) => { refreshRef(f); $('refSel').value = f; pickRef(f); return !!REFS.get(f); }, models: MODELS.map((m) => m.id) };
 
 let start = null; try { start = MODELS.find((m) => m.id === localStorage.kitlabModel); } catch {}
 pick(start || MODELS[0]);

@@ -19,7 +19,7 @@ function kitComplex(lod) {
   const ob = meshKitObelisk(2.4); for (const [x, z] of KP.obelisks) mb.add(ob, x, 0, z);
   const ban = meshKitBanner(); for (const [x, z] of KP.banners) mb.add(ban, x, 0, z);
   const tor = meshKitTorch(); for (const [x, z] of KP.torches) mb.add(tor, x, 0, z); for (const [x, z] of KP.torchesHigh) mb.add(tor, x, 17.3, z);
-  for (const o of [-4.7, 4.7]) mb.add(tor, o, 0, KP.entranceZ - 6.5);
+  for (const o of [-4.7, 4.7]) mb.add(tor, o, 0.6, KP.entranceZ - 9.4); /* flanking the doorway, in front of the arch's frame (its face at local z -7.75), standing on the plinth; (city.js: the same when the entrance goes to the game) */
   const pots = meshKitPots(); for (const [x, z, a] of KP.pots) mb.add(pots, x, 17.3, z, a);
   mb.add(meshKitCauseway(KP.entranceZ - 10.5));
   const zp = KP.entranceZ - 10.5 - 68; mb.add(meshObelisk(22, 1.1, true), 0, 0.55, zp);
@@ -31,7 +31,7 @@ function kitFireBowl(lod) { const mb = new MB(512); fireBowl(mb, 0, 0, 0, 3.0, l
 const MODELS = [ // group 'complex': the pyramid complex, in the scene
   { id: 'complex', name: 'Complexo da pirâmide', kit: 'complex', build: kitComplex },
   { id: 'pyramid', name: 'Pirâmide', kit: 'BuildingB', build: () => meshPyramidCased(107.75, 99.9) },
-  { id: 'entrance', name: 'Entrada (portão)', kit: 'BuildingA', build: (l) => meshKitEntrance(l) },
+  { id: 'entrance', name: 'Entrada (portão)', kit: 'BuildingA', kitXform: { c: [-194.62, 260.5], o: [0, 0.45, -7.75] }, build: (l) => meshKitEntrance(l) }, // (kitXform: the kit's point at our origin, for its photos' cameras)
   { id: 'terrace', name: 'Terraço', kit: 'BuildingC', build: (l) => { const mb = new MB(1 << 15); mb.add(meshKitTerrace(l), 0, 0, 0, PI); return mb.build(); } }, // (turned as in the complex, so it matches the kit photos)
   { id: 'wall', name: 'Muralha', kit: 'Wall', build: (l) => meshEnclosure(11.5, l) },
   { id: 'obelisk', name: 'Obelisco de canto', kit: 'ObeliskA', build: () => meshKitObelisk(2.4) },

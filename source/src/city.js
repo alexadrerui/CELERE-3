@@ -452,7 +452,7 @@ function populate({ type, put, paint, MAP, balRun, gH, hard }) {
     const tTorch = type([meshKitTorch()], K.SOLID, 300, 1e9, 1e9);
     for (const [x, z] of KP.torches) put(tTorch, x, F.y, P0 + z);
     for (const [x, z] of KP.torchesHigh) put(tTorch, x, F.y + 17.3, P0 + z);
-    for (const o of [-4.7, 4.7]) put(tTorch, o, F.y, P0 + KP.entranceZ - 6.5); // flanking the doorway
+    for (const o of [-4.7, 4.7]) put(tTorch, o, F.y + 0.6, P0 + KP.entranceZ - 9.4); // flanking the doorway, in front of the arch's frame, on the plinth
     const tPots = type([meshKitPots()], K.SOLID, 250, 1e9, 1e9); for (const [x, z, a] of KP.pots) put(tPots, x, F.y + 17.3, P0 + z, 1, qYaw(a));
     // the post at the end of the causeway (a slim obelisk), stone beams lying in a fan beyond it
     const zp = P0 + KP.entranceZ - 10.5 - 68;
