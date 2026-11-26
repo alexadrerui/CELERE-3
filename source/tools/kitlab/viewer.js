@@ -14,7 +14,7 @@ uniform mat4 VP; out vec3 vn; out vec3 vp; flat out vec4 vm; out float ao;
 void main() { vn = n.xyz; vp = p; vm = m; ao = n.w; gl_Position = VP * vec4(p, 1.); }`;
 const fs = `#version 300 es
 precision highp float;
-in vec3 vn; in vec3 vp; flat in vec4 vm; in float ao; uniform vec3 eye; uniform int backs; uniform int mode; out vec4 o;
+in vec3 vn; in vec3 vp; flat in vec4 vm; in float ao; uniform vec3 eye; uniform int backs; uniform int mode; uniform vec4 clip; out vec4 o;
 vec3 pig(float k) { int i = int(k / 51. + .5);
   return i == 0 ? vec3(${PIG[0]}) : i == 1 ? vec3(${PIG[1]}) : i == 2 ? vec3(${PIG[2]}) : i == 3 ? vec3(${PIG[3]}) : i == 4 ? vec3(${PIG[4]}) : vec3(${PIG[5]}); }
 vec3 base() { int mt = int(vm.x + .5); float ea = vm.y, eb = vm.z;
@@ -32,22 +32,121 @@ vec3 base() { int mt = int(vm.x + .5); float ea = vm.y, eb = vm.z;
   return vec3(.6); }
 void main() {
   if (mode != 2 && vp.y < -.01) { discard; } /* below ground: buried footings are not shown */
+  float cd = dot(vp, clip.xyz) - clip.w; if (mode != 2 && dot(clip.xyz, clip.xyz) > .5 && cd > 0.) discard; /* the section: what lies past the plane is cut away */
   if (mode == 1) { o = vec4(0., 0., 0., .55); return; }
+  if (!gl_FrontFacing && mode != 2 && dot(clip.xyz, clip.xyz) > .5) { o = vec4(vec3(.3, .27, .24), 1.); return; } /* cut open: its inside, dim */
   if (!gl_FrontFacing) { if (backs == 1) { o = vec4(1., .24, .94, 1.); return; } }
   vec3 N = normalize(gl_FrontFacing || mode == 2 ? vn : -vn); /* (mode 2: the ground, one-sided) */ vec3 L = normalize(vec3(-.45, .78, -.43)); vec3 V = normalize(eye - vp);
   float d = max(dot(N, L), 0.); float hemi = .5 + .5 * N.y;
   vec3 c = base(); vec3 col = c * (vec3(1., .96, .88) * d * .78 + mix(vec3(.24, .22, .2), vec3(.42, .46, .52), hemi) * (.55 + .45 * ao));
   if (int(vm.x + .5) == ${M.GOLD}) col += vec3(1., .85, .5) * pow(max(dot(reflect(-L, N), V), 0.), 24.) * .5;
   if (int(vm.x + .5) == ${M.MARBLE} && vm.z > 90. && vm.z < 110. && vm.y > 128.) { vec3 R = reflect(-V, N); col += mix(vec3(.25, .27, .3), vec3(.55, .65, .8), clamp(R.y * .5 + .5, 0., 1.)) * .35 + vec3(1., .95, .85) * pow(max(dot(reflect(-L, N), V), 0.), 60.) * .6; } /* its polish: sky and sun mirrored */
+  if (mode != 2 && dot(clip.xyz, clip.xyz) > .5 && cd > -.06) col = vec3(1., .45, .1); /* our cut edge: orange */
   o = vec4(pow(col, vec3(.95)), 1.); }`;
 function sh(t, s) { const o = gl.createShader(t); gl.shaderSource(o, s); gl.compileShader(o); if (!gl.getShaderParameter(o, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(o)); return o; }
 const prog = gl.createProgram(); gl.attachShader(prog, sh(gl.VERTEX_SHADER, vs)); gl.attachShader(prog, sh(gl.FRAGMENT_SHADER, fs)); gl.linkProgram(prog);
-const U = (n) => gl.getUniformLocation(prog, n), uVP = U('VP'), uEye = U('eye'), uBacks = U('backs'), uMode = U('mode');
+const U = (n) => gl.getUniformLocation(prog, n), uVP = U('VP'), uEye = U('eye'), uBacks = U('backs'), uMode = U('mode'), uClip = U('clip');
+
+// ---- the kit's own mesh, for comparing in 3D (tools/kitlab/kit_mesh.py exports it to reference/kb3d/mesh/, local only:
+// it is read here at run time and never written into the page or the project)
+const KIT_MESH_DIR = '../../../reference/kb3d/mesh/';
+const kvs = `#version 300 es
+layout(location=0) in vec3 p; layout(location=1) in vec4 n; layout(location=2) in vec4 c; layout(location=3) in vec4 b;
+uniform mat4 VP; out vec3 vn; out vec3 vp; out vec3 vc; out vec3 vb; void main() { vn = n.xyz; vp = p; vc = c.rgb; vb = b.xyz; gl_Position = VP * vec4(p, 1.); }`;
+const kfs = `#version 300 es
+precision highp float; in vec3 vn; in vec3 vp; in vec3 vc; in vec3 vb; uniform int kmode; uniform float kalpha; uniform vec4 clip; uniform vec3 eye; out vec4 o;
+void main() {
+  float cd = dot(vp, clip.xyz) - clip.w; if (dot(clip.xyz, clip.xyz) > .5 && cd > 0.) discard;
+  if (vp.y < -.01) discard;
+  bool edge = dot(clip.xyz, clip.xyz) > .5 && cd > -.06;
+  if (kmode == 2) { vec3 w = fwidth(vb); vec3 e = smoothstep(vec3(0.), w * 1.2, vb); float k = 1. - min(min(e.x, e.y), e.z); if (k < .2 && !edge) discard; o = vec4(edge ? vec3(.1, .9, 1.) : vec3(.05, .55, .75), edge ? 1. : k * kalpha + .15); return; }
+  if (!gl_FrontFacing && dot(clip.xyz, clip.xyz) > .5) discard; /* its inside, cut open */
+  vec3 N = normalize(vn); if (dot(N, eye - vp) < 0.) N = -N; vec3 L = normalize(vec3(-.45, .78, -.43));
+  vec3 col = vc * (vec3(1., .96, .88) * max(dot(N, L), 0.) * .78 + mix(vec3(.24, .22, .2), vec3(.42, .46, .52), .5 + .5 * N.y) * .9);
+  if (edge) col = vec3(.1, .9, 1.); /* the kit's cut edge: cyan */
+  o = vec4(pow(col, vec3(.95)), kmode == 3 ? 1. : kalpha); }`;
+const kprog = gl.createProgram(); gl.attachShader(kprog, sh(gl.VERTEX_SHADER, kvs)); gl.attachShader(kprog, sh(gl.FRAGMENT_SHADER, kfs)); gl.linkProgram(kprog);
+if (!gl.getProgramParameter(kprog, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(kprog));
+const KU = (n) => gl.getUniformLocation(kprog, n), kuVP = KU('VP'), kuMode = KU('kmode'), kuAlpha = KU('kalpha'), kuClip = KU('clip'), kuEye = KU('eye');
+// the kit's materials by name, coloured like ours
+const kitColour = (nm) => { const s = nm.toLowerCase();
+  return /gold/.test(s) ? [.92, .68, .26] : /hierogl/.test(s) ? [.78, .62, .44] : /granite|black/.test(s) ? [.12, .12, .13] : /white|bright/.test(s) ? [.88, .85, .78] : /orange/.test(s) ? [.8, .55, .35]
+    : /sandstone|trim|colum/.test(s) ? [.8, .66, .47] : /mud/.test(s) ? [.6, .45, .3] : /wood|bark/.test(s) ? [.4, .28, .18] : /cloth|banner|fabric/.test(s) ? [.66, .26, .18] : /clay|pot/.test(s) ? [.6, .38, .25] : [.7, .68, .64]; };
+let kitIndex = null, kitGPU = null, kitKey = '', kitLoading = '';
+const kitCache = new Map();
+async function kitPart(key) { if (kitCache.has(key)) return kitCache.get(key);
+  const e = kitIndex[key]; if (!e) return null; const buf = await (await fetch(KIT_MESH_DIR + e.file)).arrayBuffer();
+  const r = { pos: new Float32Array(buf, 0, e.tris * 9), mat: new Uint8Array(buf, e.tris * 36, e.tris), e }; kitCache.set(key, r); return r; }
+// which kit parts a model compares with
+function kitParts(m) { if (!m || !m.kit) return []; const A = m.kitAsset || 'BldgLgPyramid_A';
+  if (m.kit === 'complex' || m.kit === A) return Object.keys(kitIndex).filter((k) => k.startsWith(A + '/') && !k.endsWith('/'));
+  return [`${A}/${m.kit}`]; }
+async function kitLoad() {
+  const mode = +$('kitMode').value, alone = model && !model.build; if ((!mode && !alone) || !model || !model.kit || (!cur && !alone)) { $('kitInfo').textContent = mode ? 'Este modelo não tem peça no kit' : ''; return; }
+  if (!kitIndex) { try { kitIndex = await (await fetch(KIT_MESH_DIR + 'index.json', { cache: 'no-store' })).json(); } catch { $('kitInfo').textContent = 'Sem malhas do kit: rode tools/kitlab/kit_mesh.py (reference/kb3d/mesh/)'; return; } }
+  const keys = kitParts(model), key = model.id + ':' + keys.join(','); if (key === kitKey || key === kitLoading) return;
+  if (!keys.length || !keys.every((k) => kitIndex[k])) { $('kitInfo').textContent = 'Esta peça não tem malha do kit exportada (tools/kitlab/kit_mesh.py)'; kitFree(); redraw(); return; }
+  kitLoading = key; $('kitInfo').textContent = 'carregando a malha do kit…';
+  const P = []; for (const k of keys) P.push(await kitPart(k)); if (kitLoading !== key) return;
+  // the frame: model.kitXform (the kit point at our origin, c = [x, y], and our offset o), else the complex's frame
+  // (the pyramid's centre) for the complex and its parts laid out there, else the part's box: its centre on ours, its
+  // foot on the ground
+  const S = KIT_SCALE; let c, o;
+  if (model.kitXform) { c = model.kitXform.c; o = model.kitXform.o; }
+  else if (['complex', 'pyramid', 'wall'].includes(model.id)) { c = KIT_PYR; o = [0, 0, 0]; }
+  else if (alone) { const bx = (kitIndex[model.kitAsset + '/'] || P[0].e).box; c = [(bx[0][0] + bx[1][0]) / 2, (bx[0][1] + bx[1][1]) / 2]; o = [0, -bx[0][2] * S, 0]; } // (no model of ours: the kit alone, centred, on the ground)
+  else { const bx = P[0].e.box; c = [(bx[0][0] + bx[1][0]) / 2, (bx[0][1] + bx[1][1]) / 2]; o = [(cur.lo[0] + cur.hi[0]) / 2, -bx[0][2] * S, (cur.lo[2] + cur.hi[2]) / 2]; }
+  const nt = P.reduce((s, q) => s + q.e.tris, 0), buf = new ArrayBuffer(nt * 3 * 24), f = new Float32Array(buf), sb = new Int8Array(buf), u8 = new Uint8Array(buf);
+  let v = 0;
+  for (const q of P) { const col = q.e.mats.map(kitColour);
+    for (let t = 0; t < q.e.tris; t++) { const A = [], cc = col[q.mat[t]] || [.7, .7, .7];
+      for (const k of [0, 2, 1]) { /* (the mirror in x would turn the faces inside out) */ const x = q.pos[t * 9 + k * 3], y = q.pos[t * 9 + k * 3 + 1], z = q.pos[t * 9 + k * 3 + 2]; A.push([-(x - c[0]) * S + o[0], z * S + o[1], (y - c[1]) * S + o[2]]); }
+      const nn = vnorm(vcross([A[1][0] - A[0][0], A[1][1] - A[0][1], A[1][2] - A[0][2]], [A[2][0] - A[0][0], A[2][1] - A[0][1], A[2][2] - A[0][2]]));
+      for (let k = 0; k < 3; k++, v++) { const i = v * 6, q4 = v * 24; f[i] = A[k][0]; f[i + 1] = A[k][1]; f[i + 2] = A[k][2];
+        sb[q4 + 12] = nn[0] * 127; sb[q4 + 13] = nn[1] * 127; sb[q4 + 14] = nn[2] * 127; u8[q4 + 16] = cc[0] * 255; u8[q4 + 17] = cc[1] * 255; u8[q4 + 18] = cc[2] * 255; u8[q4 + 19] = 255;
+        u8[q4 + 20] = k === 0 ? 255 : 0; u8[q4 + 21] = k === 1 ? 255 : 0; u8[q4 + 22] = k === 2 ? 255 : 0; u8[q4 + 23] = 0; } } }
+  kitFree(); const vao = gl.createVertexArray(), vb = gl.createBuffer(); gl.bindVertexArray(vao); gl.bindBuffer(gl.ARRAY_BUFFER, vb); gl.bufferData(gl.ARRAY_BUFFER, buf, gl.STATIC_DRAW);
+  gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0, 3, gl.FLOAT, false, 24, 0); gl.enableVertexAttribArray(1); gl.vertexAttribPointer(1, 4, gl.BYTE, true, 24, 12);
+  gl.enableVertexAttribArray(2); gl.vertexAttribPointer(2, 4, gl.UNSIGNED_BYTE, true, 24, 16); gl.enableVertexAttribArray(3); gl.vertexAttribPointer(3, 4, gl.UNSIGNED_BYTE, true, 24, 20); gl.bindVertexArray(null);
+  kitGPU = { vao, vb, n: nt * 3, f }; kitKey = key; kitLoading = ''; secKey = '';
+  if (alone) { // no model of ours: the kit stands in, framed and measured as ours would be
+    const lo = [1e9, 1e9, 1e9], hi = [-1e9, -1e9, -1e9]; for (let i = 0; i < nt * 3; i++) for (let k = 0; k < 3; k++) { const x = f[i * 6 + k]; if (x < lo[k]) lo[k] = x; if (x > hi[k]) hi[k] = x; }
+    lo[1] = max(lo[1], 0); cur = { vao: null, n: 0, nl: 0, nv: 0, lo, hi, f: new Float32Array(0), idx: new Uint32Array(0) }; $('noModel').style.display = 'none'; setView(view || 'az045'); }
+  $('kitInfo').textContent = `kit: ${keys.length} peça${keys.length > 1 ? 's' : ''} · ${nt.toLocaleString()} triângulos · laranja = nosso corte, ciano = corte do kit`; redraw(); }
+// the section's lines: every triangle crossing the plane gives a segment (ours orange, the kit's cyan), drawn a couple
+// of pixels thick; recomputed only when the plane, the model or the kit changes
+const lvs = `#version 300 es
+layout(location=0) in vec3 p; uniform mat4 VP; uniform vec2 off; void main() { gl_Position = VP * vec4(p, 1.); gl_Position.xy += off * gl_Position.w; }`;
+const lfs = `#version 300 es
+precision highp float; uniform vec3 col; out vec4 o; void main() { o = vec4(col, 1.); }`;
+const lprog = gl.createProgram(); gl.attachShader(lprog, sh(gl.VERTEX_SHADER, lvs)); gl.attachShader(lprog, sh(gl.FRAGMENT_SHADER, lfs)); gl.linkProgram(lprog);
+const luVP = gl.getUniformLocation(lprog, 'VP'), luOff = gl.getUniformLocation(lprog, 'off'), luCol = gl.getUniformLocation(lprog, 'col');
+let secKey = ''; const sec = { ours: null, kit: null };
+function sectionOf(get, nt, n, d) { const out = []; const P = [[0, 0, 0], [0, 0, 0], [0, 0, 0]], g = [0, 0, 0];
+  for (let t = 0; t < nt; t++) { get(t, P); for (let k = 0; k < 3; k++) g[k] = P[k][0] * n[0] + P[k][1] * n[1] + P[k][2] * n[2] - d;
+    let m = 0; for (let k = 0; k < 3; k++) { const a = g[k], b = g[(k + 1) % 3]; if ((a < 0) !== (b < 0)) { const s = a / (a - b), A = P[k], B = P[(k + 1) % 3]; out.push(A[0] + (B[0] - A[0]) * s, A[1] + (B[1] - A[1]) * s, A[2] + (B[2] - A[2]) * s); m++; } }
+    if (m === 1) out.length -= 3; }
+  const vb = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, vb); gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(out), gl.STATIC_DRAW); return { vb, n: out.length / 3 }; }
+function drawSection(VP, clip, w, h, km) {
+  const n = clip.slice(0, 3), d = clip[3], key = clip.join(',') + '|' + (cur && cur.nv) + '|' + (kitGPU ? kitGPU.n : 0) + '|' + km;
+  if (key !== secKey) { for (const s of [sec.ours, sec.kit]) if (s) gl.deleteBuffer(s.vb); sec.ours = sec.kit = null;
+    if (km !== 3 && cur.n) { const f = cur.f, ix = cur.idx; sec.ours = sectionOf((t, P) => { for (let k = 0; k < 3; k++) { const i = ix[t * 3 + k] * 5; P[k][0] = f[i]; P[k][1] = f[i + 1]; P[k][2] = f[i + 2]; } }, ix.length / 3, n, d); }
+    if (km && kitGPU) { const f = kitGPU.f; sec.kit = sectionOf((t, P) => { for (let k = 0; k < 3; k++) { const i = (t * 3 + k) * 6; P[k][0] = f[i]; P[k][1] = f[i + 1]; P[k][2] = f[i + 2]; } }, kitGPU.n / 3, n, d); }
+    secKey = key; }
+  gl.useProgram(lprog); gl.uniformMatrix4fv(luVP, false, VP); gl.disable(gl.DEPTH_TEST); const vao = gl.createVertexArray(); gl.bindVertexArray(vao); gl.enableVertexAttribArray(0);
+  for (const [s, col] of [[sec.kit, [.1, .9, 1]], [sec.ours, [1, .5, .12]]]) { if (!s || !s.n) continue; gl.bindBuffer(gl.ARRAY_BUFFER, s.vb); gl.vertexAttribPointer(0, 3, gl.FLOAT, false, 0, 0); gl.uniform3fv(luCol, col);
+    for (const [dx, dy] of [[0, 0], [1, 0], [0, 1], [1, 1]]) { gl.uniform2f(luOff, dx * 2 / w, dy * 2 / h); gl.drawArrays(gl.LINES, 0, s.n); } }
+  gl.bindVertexArray(null); gl.deleteVertexArray(vao); gl.enable(gl.DEPTH_TEST); }
+function kitFree() { if (kitGPU) { gl.deleteVertexArray(kitGPU.vao); gl.deleteBuffer(kitGPU.vb); } kitGPU = null; kitKey = ''; }
+// the section plane: along an axis, at a fraction of our model's extent (a little past it either way)
+let cutSign = 1;
+function cutPlane() { const ax = $('cutAxis').value; if (!ax || !cur) { $('cutVal').textContent = '—'; return [0, 0, 0, 0]; } const k = 'xyz'.indexOf(ax), lo = cur.lo[k] - 2, hi = cur.hi[k] + 2, v = lo + (hi - lo) * $('cutPos').value / 1000;
+  $('cutVal').textContent = v.toFixed(2) + ' m'; const n = [0, 0, 0]; n[k] = cutSign; return [...n, v * cutSign]; }
 
 // the mesh on the GPU, its edges for the wire view, its bounds
 let cur = null;
 function upload(mesh) {
-  if (cur) { gl.deleteVertexArray(cur.vao); gl.deleteBuffer(cur.vb); gl.deleteBuffer(cur.ib); gl.deleteBuffer(cur.eb); }
+  if (cur && cur.vao) { gl.deleteVertexArray(cur.vao); gl.deleteBuffer(cur.vb); gl.deleteBuffer(cur.ib); gl.deleteBuffer(cur.eb); }
   const vao = gl.createVertexArray(); gl.bindVertexArray(vao);
   const vb = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, vb); gl.bufferData(gl.ARRAY_BUFFER, mesh.vb, gl.STATIC_DRAW);
   gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0, 3, gl.FLOAT, false, 20, 0);
@@ -60,7 +159,7 @@ function upload(mesh) {
   const f = new Float32Array(mesh.vb), lo = [1e9, 1e9, 1e9], hi = [-1e9, -1e9, -1e9];
   for (let i = 0; i < mesh.nv; i++) for (let k = 0; k < 3; k++) { const v = f[i * 5 + k]; if (v < lo[k]) lo[k] = v; if (v > hi[k]) hi[k] = v; }
   lo[1] = max(lo[1], 0); // what lies below ground (y < 0: buried footings) is neither framed, measured nor shown
-  cur = { vao, vb, ib, eb, n: mesh.ib.length, nl: ln.length, nv: mesh.nv, lo, hi };
+  cur = { vao, vb, ib, eb, n: mesh.ib.length, nl: ln.length, nv: mesh.nv, lo, hi, f, idx: mesh.ib }; secKey = '';
 }
 
 // camera: orbit around a target, perspective or orthographic
@@ -94,16 +193,27 @@ function draw() {
   const w = canvas.clientWidth * devicePixelRatio | 0, h = canvas.clientHeight * devicePixelRatio | 0; if (canvas.width !== w || canvas.height !== h) { canvas.width = w; canvas.height = h; }
   gl.viewport(0, 0, w, h); gl.clearColor(.62, .69, .78, 1); gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT); gl.enable(gl.DEPTH_TEST); gl.disable(gl.CULL_FACE);
   if (!cur) return;
-  const { VP, eye } = matrices(w / h); gl.useProgram(prog); gl.uniformMatrix4fv(uVP, false, VP); gl.uniform3fv(uEye, eye); gl.uniform1i(uBacks, $('backs').checked ? 1 : 0); gl.uniform1i(uMode, 0);
+  const { VP, eye } = matrices(w / h), clip = cutPlane(), km0 = +$('kitMode').value, km = model && !model.build ? (km0 === 2 ? 2 : 3) : km0, band = $('cutProfile').checked && clip[0] + clip[1] + clip[2] !== 0;
+  if (band) { gl.clearColor(.1, .09, .08, 1); gl.clear(gl.COLOR_BUFFER_BIT); drawSection(VP, clip, w, h, km); info(); return; }
+  gl.useProgram(prog); gl.uniform4fv(uClip, clip); gl.uniformMatrix4fv(uVP, false, VP); gl.uniform3fv(uEye, eye); gl.uniform1i(uBacks, $('backs').checked ? 1 : 0); gl.uniform1i(uMode, 0);
   if ($('ground').checked) { const s = hypot(cur.hi[0] - cur.lo[0], cur.hi[2] - cur.lo[2]) * 3 + 20; groundAt(-0.02, s); gl.bindVertexArray(gvao); gl.uniform1i(uBacks, 0); gl.uniform1i(uMode, 2); gl.drawArrays(gl.TRIANGLE_FAN, 0, 4); gl.uniform1i(uMode, 0); gl.uniform1i(uBacks, $('backs').checked ? 1 : 0); }
   // front faces first, then back faces pushed a little away in depth: a back face shows (magenta) only where no front
   // face covers it, i.e. a real hole, not a thin plate's far side winning a depth tie from afar (the game culls back
   // faces, so those never show there)
   gl.bindVertexArray(cur.vao); gl.enable(gl.CULL_FACE);
-  gl.cullFace(gl.BACK); gl.drawElements(gl.TRIANGLES, cur.n, gl.UNSIGNED_INT, 0);
-  gl.cullFace(gl.FRONT); gl.enable(gl.POLYGON_OFFSET_FILL); gl.polygonOffset(2, 8); gl.drawElements(gl.TRIANGLES, cur.n, gl.UNSIGNED_INT, 0);
+  if (km !== 3 && cur.n) { gl.cullFace(gl.BACK); gl.drawElements(gl.TRIANGLES, cur.n, gl.UNSIGNED_INT, 0);
+    gl.cullFace(gl.FRONT); gl.enable(gl.POLYGON_OFFSET_FILL); gl.polygonOffset(2, 8); gl.drawElements(gl.TRIANGLES, cur.n, gl.UNSIGNED_INT, 0); }
   gl.disable(gl.POLYGON_OFFSET_FILL); gl.disable(gl.CULL_FACE);
-  if ($('wire').checked) { gl.uniform1i(uMode, 1); gl.enable(gl.BLEND); gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA); gl.depthFunc(gl.LEQUAL); gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, cur.eb); gl.drawElements(gl.LINES, cur.nl, gl.UNSIGNED_INT, 0); gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, cur.ib); gl.disable(gl.BLEND); gl.depthFunc(gl.LESS); }
+  // the kit: opaque alone (3), or over ours: blended where it is in front of or level with ours (1), as wires (2),
+  // or blended right through (4)
+  if (km && kitGPU) { gl.useProgram(kprog); gl.uniformMatrix4fv(kuVP, false, VP); gl.uniform4fv(kuClip, clip); gl.uniform3fv(kuEye, eye); gl.uniform1i(kuMode, km === 4 ? 1 : km); gl.uniform1f(kuAlpha, $('kitAlpha').value / 100);
+    gl.bindVertexArray(kitGPU.vao);
+    if (km === 3) gl.drawArrays(gl.TRIANGLES, 0, kitGPU.n);
+    else { gl.enable(gl.BLEND); gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA); gl.depthMask(false); if (km === 4) gl.disable(gl.DEPTH_TEST); else { gl.depthFunc(gl.LEQUAL); gl.enable(gl.POLYGON_OFFSET_FILL); gl.polygonOffset(-1, -4); }
+      gl.drawArrays(gl.TRIANGLES, 0, kitGPU.n); gl.disable(gl.POLYGON_OFFSET_FILL); gl.depthMask(true); gl.enable(gl.DEPTH_TEST); gl.depthFunc(gl.LESS); gl.disable(gl.BLEND); }
+    gl.useProgram(prog); gl.bindVertexArray(cur.vao); }
+  gl.enable(gl.DEPTH_TEST);
+  if ($('wire').checked && cur.n) { gl.uniform1i(uMode, 1); gl.enable(gl.BLEND); gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA); gl.depthFunc(gl.LEQUAL); gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, cur.eb); gl.drawElements(gl.LINES, cur.nl, gl.UNSIGNED_INT, 0); gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, cur.ib); gl.disable(gl.BLEND); gl.depthFunc(gl.LESS); }
   gl.bindVertexArray(null);
   info();
 }
@@ -122,7 +232,7 @@ addEventListener('resize', fitFrames); fitFrames();
 const bbox = () => ({ c: [0, 1, 2].map((k) => (cur.lo[k] + cur.hi[k]) / 2), d: [0, 1, 2].map((k) => cur.hi[k] - cur.lo[k]) });
 let view = 'az045';
 function setView(v) {
-  view = v || 'az045'; v = view; if (!cur || !model.build) { refreshRef(); syncButtons(); return; } /* (after a free camera there is no named view: frame from 45°) */ const { c, d } = bbox(), asp = 4 / 3; cam.tgt = c.slice();
+  view = v || 'az045'; v = view; if (!cur) { refreshRef(); syncButtons(); return; } /* (no model of ours: framed on the kit's stand-in once it is loaded) */ /* (after a free camera there is no named view: frame from 45°) */ const { c, d } = bbox(), asp = 4 / 3; cam.tgt = c.slice();
   if (v.startsWith('az')) { // perspective, 35 mm lens, framing the bounding sphere as the photos do
     const az0 = +v.slice(2, 5), azs = model.orbit ? Math.round(az0 / model.orbit.step) * model.orbit.step : az0, az = azs * DEG, el = (model.orbit ? model.orbit.el : isComplexLow() ? 12 : model.kit === 'complex' ? 30 : 22) * DEG, lens = isComplexLow() ? 28 : 35, mrg = isComplexLow() ? 0.8 : 1;
     const R = hypot(...d) / 2 * mrg * ((model.frame || {}).az || 1); cam.ortho = false; cam.fovY = 2 * Math.atan(13.5 / lens); cam.dist = R / tan(Math.atan(18 / lens) * 0.92);
@@ -202,18 +312,19 @@ function pick(m) {
     cur = null; $('noModel').style.display = 'flex'; $('ourTag').textContent = 'Nosso modelo · ' + m.name; const a = m.kitInfo, k = (x) => (x * KIT_SCALE).toFixed(0), RL = { high: 'alta', medium: 'média', low: 'baixa' };
     $('noModel').textContent = `${m.name}\nainda sem modelo procedural\n\nkit ×${KIT_SCALE}: ${k(a.dims[0])} × ${k(a.dims[2])} × ${k(a.dims[1])} m (largura × altura × profundidade)\n${a.parts} peças · relevância: ${RL[a.rel] || '—'}`;
     $('info').innerHTML = `<b>${m.name}</b> (${m.kit}) · kit ×${KIT_SCALE}: <b>${k(a.dims[0])} × ${k(a.dims[2])} × ${k(a.dims[1])} m</b> · ${a.parts} peças · ${a.tris.toLocaleString()} triângulos no kit\npeças: ${[...new Set(a.names.map((n) => n.replace(/[A-Z]$/, '')))].join(', ')}`;
-    setView(['front', 'top'].includes(view) ? view : 'az045'); redraw(); return;
+    setView(['front', 'top'].includes(view) ? view : 'az045'); redraw(); kitFree(); kitLoad(); return; // (the kit stands in for ours: built afresh)
   }
   $('noModel').style.display = 'none';
   try { mesh = m.build(+$('lod').value); } catch (e) { $('err').style.display = 'block'; $('err').textContent = `${m.name}: ${e.message}\n${(e.stack || '').split('\n').slice(1, 4).join('\n')}`; return; }
   $('err').style.display = 'none'; upload(mesh); $('ourTag').textContent = 'Nosso modelo · ' + m.name;
   $('azs').querySelectorAll('[data-v=low]').forEach((b) => { b.style.display = m.kit === 'complex' ? '' : 'none'; });
   setView(m.kit === 'complex' && !(view.startsWith('az') || view === 'top') ? 'az045' : view);
+  kitLoad();
 }
 // the list: a building is one entry; its parts (entries with parent: its id) fold under it, opened by clicking it
 let openP = null; try { openP = localStorage.kitlabOpen || null; } catch {}
 function listModels() {
-  const G = { complex: 'Complexo da pirâmide · no jogo', large: 'Outros prédios grandes do kit · sem modelo' }, RL = { high: 'alta', medium: 'média', low: 'baixa' }; let h = '', g = '';
+  const G = { complex: 'Complexo da pirâmide · no jogo', large: 'Prédios grandes do kit · sem modelo', medium: 'Prédios médios do kit · sem modelo', small: 'Prédios pequenos do kit · sem modelo' }, RL = { high: 'alta', medium: 'média', low: 'baixa' }; let h = '', g = '';
   for (const m of MODELS) {
     if (m.parent && m.parent !== openP) continue;
     if (m.group !== g) { g = m.group; h += `<h3>${G[g] || g}</h3>`; }
@@ -238,6 +349,14 @@ function syncButtons() {
 }
 $('views').onclick = $('azs').onclick = (e) => { const b = e.target.closest('button'); if (!b) return; if (b.dataset.v === 'low') { complexLow = !complexLow; setView(view.startsWith('az') ? view : 'az045'); } else if (model && model.kit === 'complex' && !b.dataset.v.startsWith('az') && b.dataset.v !== 'top') return; else setView(b.dataset.v); };
 $('refSel').onchange = (e) => pickRef(e.target.value);
+$('kitMode').onchange = () => { try { localStorage.kitlabKit = $('kitMode').value; } catch {} kitLoad(); redraw(); };
+$('kitAlpha').oninput = redraw; $('cutProfile').onchange = redraw; $('cutAxis').onchange = redraw; $('cutPos').oninput = redraw; $('cutFlip').onclick = () => { cutSign = -cutSign; redraw(); };
+$('cutLook').onclick = () => { const ax = $('cutAxis').value; if (!ax || !cur) return; const { c, d } = bbox(); cam.ortho = true; cam.tgt = c.slice(); cam.dist = hypot(...d) + 20; const k = 'xyz'.indexOf(ax);
+  cam.tgt[k] = cutPlane()[3] * cutSign; // looking at the cut face, from the side that was cut away
+  if (ax === 'y') { cam.yaw = 0; cam.pit = cutSign > 0 ? PI / 2 - 1e-4 : -PI / 2 + 1e-4; cam.oscale = max(d[0], d[2] * 4 / 3) * 1.1; }
+  else if (ax === 'z') { cam.yaw = cutSign > 0 ? PI : 0; cam.pit = 0; cam.oscale = max(d[0], d[1] * 4 / 3) * 1.1; } else { cam.yaw = cutSign > 0 ? PI / 2 : -PI / 2; cam.pit = 0; cam.oscale = max(d[2], d[1] * 4 / 3) * 1.1; }
+  $('cutProfile').checked = true; view = ''; syncButtons(); redraw(); };
+try { if (localStorage.kitlabKit) $('kitMode').value = localStorage.kitlabKit; } catch {}
 $('camSync').onchange = () => { if ($('camSync').checked) kitCam(REFS.get($('refSel').value)); };
 addEventListener('keydown', (e) => { if (e.key !== '[' && e.key !== ']') return; const s = $('refSel'), n = s.options.length; if (!n) return; s.selectedIndex = (s.selectedIndex + (e.key === ']' ? 1 : n - 1)) % n; pickRef(s.value); });
 // the overlay: a mix (opacity), the difference (where the two disagree it lights up) or a curtain (the photo on the
@@ -276,7 +395,8 @@ function info() {
 }
 // look(eye, target): a free camera (for tests and for sharing a view); also mb.find(): where the magenta pixels are
 const look = (e, t) => { cam.ortho = false; cam.fovY = 2 * Math.atan(13.5 / 35); cam.tgt = t.slice(); const d = [e[0] - t[0], e[1] - t[1], e[2] - t[2]]; cam.dist = hypot(...d); cam.pit = Math.asin(d[1] / cam.dist); cam.yaw = Math.atan2(d[0], -d[2]); view = ''; syncButtons(); redraw(); };
-window.__kitlab = { pick: (id) => pick(MODELS.find((m) => m.id === id)), build: (id, l = 0) => MODELS.find((m) => m.id === id).build(l), /* (for the audits: a model's mesh) */ setView, look, photo: (f) => { refreshRef(f); $('refSel').value = f; pickRef(f); return !!REFS.get(f); }, models: MODELS.map((m) => m.id) };
+window.__kitlab = { bounds: () => cur && [cur.lo, cur.hi, cur.n, kitGPU && kitGPU.n, $("kitInfo").textContent], kit: async (m) => { $('kitMode').value = String(m); await kitLoad(); redraw(); return $('kitInfo').textContent; }, profile: (on) => { $('cutProfile').checked = !!on; redraw(); }, cut: (ax, f, s = 1) => { $('cutAxis').value = ax; $('cutPos').value = f * 1000; cutSign = s; redraw(); return $('cutVal').textContent; }, cutLook: () => $('cutLook').onclick(),
+  pick: (id) => pick(MODELS.find((m) => m.id === id)), build: (id, l = 0) => MODELS.find((m) => m.id === id).build(l), /* (for the audits: a model's mesh) */ setView, look, photo: (f) => { refreshRef(f); $('refSel').value = f; pickRef(f); return !!REFS.get(f); }, models: MODELS.map((m) => m.id) };
 
 let start = null; try { start = MODELS.find((m) => m.id === localStorage.kitlabModel); } catch {}
 pick(start || MODELS[0]);

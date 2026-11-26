@@ -247,3 +247,14 @@ by place, material and normal. Typical waste, now avoided in the entrance: decor
 (use `fqd`, or a key without its back face); a wall behind a block that covers it; a bowl's bottom on its slab; the part
 of a face under a collar. Remove at the source, then re-run the magenta check: a removed face can open a hole
 (e.g. the cut's lid needs every solid's outline where the pyramid cuts it).
+
+## 15. The kit's own mesh in the Kit Lab (local only)
+
+`blender -b <kit.blend> --python tools/kitlab/kit_mesh.py -- D:/VSCode/atlantis/reference/kb3d/mesh <AssetId> [Part,...]`
+exports the kit's parts (evaluated, triangulated, in the kit's world) to `reference/kb3d/mesh/` (git-ignored). The Kit
+Lab reads them at run time ("Kit em 3D"): Fantasma (over ours), Arame, Raio-X (through), Só o kit; and a section plane
+(Corte: height, depth or width) with "Só o perfil do corte": our cut line orange, the kit's cyan, worked out from the
+triangles. Mapping: `kitXform` (c: the kit point at our origin, o: our offset), the pyramid's centre for the complex,
+pyramid and wall, else the part's box centred on ours with its foot on the ground. NEVER copy this geometry into
+`src/`, the build, the page or any committed file: it is licensed; we measure from it, we don't ship it.
+Use the profile view instead of ad-hoc Blender slicing scripts: pick the axis, slide to the place, "Ver o corte".

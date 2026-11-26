@@ -26,7 +26,7 @@ function build() {
   let kitLarge = '[]'; const RJ = path.join(root, 'reference', 'kb3d', 'kb3d_reference.json');
   if (existsSync(RJ)) { const r = JSON.parse(readFileSync(RJ, 'utf8')), rel = (r.summary && r.summary.by_relevance) || {};
     const lvl = (id) => Object.keys(rel).find((k) => rel[k].includes(id.replace(/_[A-Z]$/, ''))) || '';
-    kitLarge = JSON.stringify(r.assets.filter((a) => a.id.startsWith('BldgLg')).map((a) => ({ id: a.id, dims: [a.dimensions_m.width_x, a.dimensions_m.depth_y, a.dimensions_m.height_z], parts: a.mesh_parts, names: a.part_names, tris: a.triangles, rel: lvl(a.id) }))); }
+    kitLarge = JSON.stringify(r.assets.filter((a) => /^Bldg(Lg|Md|Sm)/.test(a.id)).map((a) => ({ id: a.id, dims: [a.dimensions_m.width_x, a.dimensions_m.depth_y, a.dimensions_m.height_z], parts: a.mesh_parts, names: a.part_names, tris: a.triangles, rel: lvl(a.id) }))); }
   let kitDims = '{}', kitTop = '{ c: [0, 0], scale: 1 }';
   if (existsSync(path.join(REF, 'complex_ortho_top.json'))) { const j = JSON.parse(readFileSync(path.join(REF, 'complex_ortho_top.json'), 'utf8')); kitTop = JSON.stringify({ c: j.centre, scale: j.ortho_scale }); }
   if (existsSync(path.join(REF, 'manifest.json'))) kitDims = JSON.stringify(JSON.parse(readFileSync(path.join(REF, 'manifest.json'), 'utf8')).parts);

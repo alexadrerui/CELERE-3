@@ -48,8 +48,9 @@ const KIT_LARGE_PT = { BldgLgTempleOfAnubis_A: 'Templo de Anúbis', BldgLgPyrami
   BldgLgSacrificialAltar_A: 'Altar de sacrifícios', BldgLgEmbalmingTemple_A: 'Templo de embalsamamento', BldgLgRoyalGarden_A: 'Jardim real',
   BldgLgRoyalPalace_A: 'Palácio real', BldgLgObservatory_A: 'Observatório' };
 const RANK = { high: 0, medium: 1, low: 2, '': 3 };
-for (const a of KIT_LARGE.filter((a) => a.id !== 'BldgLgPyramid_A').sort((p, q) => RANK[p.rel] - RANK[q.rel] || q.dims[0] * q.dims[1] - p.dims[0] * p.dims[1]))
-  MODELS.push({ id: a.id, name: KIT_LARGE_PT[a.id] || a.id, kit: a.id, group: 'large', refs: 'renders', kitInfo: a, build: null });
+const SZ = { Lg: 0, Md: 1, Sm: 2 };
+for (const a of KIT_LARGE.filter((a) => a.id !== 'BldgLgPyramid_A').sort((p, q) => SZ[p.id.slice(4, 6)] - SZ[q.id.slice(4, 6)] || RANK[p.rel] - RANK[q.rel] || q.dims[0] * q.dims[1] - p.dims[0] * p.dims[1]))
+  MODELS.push({ id: a.id, name: KIT_LARGE_PT[a.id] || a.id.replace(/^Bldg(Lg|Md|Sm)/, '').replace(/_([A-Z])$/, ' $1').replace(/([a-z])([A-Z])/g, '$1 $2'), kit: a.id, kitAsset: a.id, group: { Lg: 'large', Md: 'medium', Sm: 'small' }[a.id.slice(4, 6)], refs: 'renders', kitInfo: a, build: null });
 
 // ======== the recumbent jackal of the Temple of Anubis (kit SculptureA), sculpted from primitives ========
 // Measured off the kit's side and top silhouettes (x2.4), then built by hand: no kit geometry is used. Frame: X along
