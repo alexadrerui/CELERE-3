@@ -395,7 +395,16 @@ function info() {
 }
 // look(eye, target): a free camera (for tests and for sharing a view); also mb.find(): where the magenta pixels are
 const look = (e, t) => { cam.ortho = false; cam.fovY = 2 * Math.atan(13.5 / 35); cam.tgt = t.slice(); const d = [e[0] - t[0], e[1] - t[1], e[2] - t[2]]; cam.dist = hypot(...d); cam.pit = Math.asin(d[1] / cam.dist); cam.yaw = Math.atan2(d[0], -d[2]); view = ''; syncButtons(); redraw(); };
-window.__kitlab = { bounds: () => cur && [cur.lo, cur.hi, cur.n, kitGPU && kitGPU.n, $("kitInfo").textContent], kit: async (m) => { $('kitMode').value = String(m); await kitLoad(); redraw(); return $('kitInfo').textContent; }, profile: (on) => { $('cutProfile').checked = !!on; redraw(); }, cut: (ax, f, s = 1) => { $('cutAxis').value = ax; $('cutPos').value = f * 1000; cutSign = s; redraw(); return $('cutVal').textContent; }, cutLook: () => $('cutLook').onclick(),
+// for the section check (tools/kitlab/section_check.mjs): the cut's segments, ours and the kit's, at a plane
+function sectionSegs(ax, v) { const n = [0, 0, 0]; n['xyz'.indexOf(ax)] = 1; const seg = (get, nt) => { const out = [], P = [[0, 0, 0], [0, 0, 0], [0, 0, 0]], g = [0, 0, 0];
+    for (let t = 0; t < nt; t++) { get(t, P); for (let k = 0; k < 3; k++) g[k] = P[k][0] * n[0] + P[k][1] * n[1] + P[k][2] * n[2] - v; const s0 = out.length;
+      for (let k = 0; k < 3; k++) { const a = g[k], b = g[(k + 1) % 3]; if ((a < 0) !== (b < 0)) { const s = a / (a - b), A = P[k], B = P[(k + 1) % 3]; out.push(+(A[0] + (B[0] - A[0]) * s).toFixed(3), +(A[1] + (B[1] - A[1]) * s).toFixed(3), +(A[2] + (B[2] - A[2]) * s).toFixed(3)); } }
+      if (out.length - s0 === 3) out.length = s0; }
+    return out; };
+  const ours = cur && cur.n ? seg((t, P) => { for (let k = 0; k < 3; k++) { const i = cur.idx[t * 3 + k] * 5; P[k][0] = cur.f[i]; P[k][1] = cur.f[i + 1]; P[k][2] = cur.f[i + 2]; } }, cur.idx.length / 3) : [];
+  const kit = kitGPU ? seg((t, P) => { for (let k = 0; k < 3; k++) { const i = (t * 3 + k) * 6; P[k][0] = kitGPU.f[i]; P[k][1] = kitGPU.f[i + 1]; P[k][2] = kitGPU.f[i + 2]; } }, kitGPU.n / 3) : [];
+  return { ours, kit, lo: cur && cur.lo, hi: cur && cur.hi }; }
+window.__kitlab = { sections: sectionSegs, cutAt: (ax, v) => { const k = 'xyz'.indexOf(ax), lo = cur.lo[k] - 2, hi = cur.hi[k] + 2; $('cutAxis').value = ax; $('cutPos').value = (v - lo) / (hi - lo) * 1000; cutSign = 1; $('cutLook').onclick(); }, bounds: () => cur && [cur.lo, cur.hi, cur.n, kitGPU && kitGPU.n, $("kitInfo").textContent], kit: async (m) => { $('kitMode').value = String(m); await kitLoad(); redraw(); return $('kitInfo').textContent; }, profile: (on) => { $('cutProfile').checked = !!on; redraw(); }, cut: (ax, f, s = 1) => { $('cutAxis').value = ax; $('cutPos').value = f * 1000; cutSign = s; redraw(); return $('cutVal').textContent; }, cutLook: () => $('cutLook').onclick(),
   pick: (id) => pick(MODELS.find((m) => m.id === id)), build: (id, l = 0) => MODELS.find((m) => m.id === id).build(l), /* (for the audits: a model's mesh) */ setView, look, photo: (f) => { refreshRef(f); $('refSel').value = f; pickRef(f); return !!REFS.get(f); }, models: MODELS.map((m) => m.id) };
 
 let start = null; try { start = MODELS.find((m) => m.id === localStorage.kitlabModel); } catch {}
